@@ -1,43 +1,42 @@
-import { Image, StyleSheet, Text, View } from "react-native";
-import { song } from "./App";
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import type { Track } from "@/lib/music";
 
 type LibraryProps = {
-  songs: song[] | undefined;
+  songs: Track[];
+  isSearching: boolean;
+  error: string | null;
+  query: string;
+  onPressSong: (track: Track) => void;
 };
 
-export default function Library({ songs }: LibraryProps) {
+export default function Library({ songs, isSearching, error, query, onPressSong }: LibraryProps) {
+  const showEmptyState = query.length >= 3 && !isSearching && !error && songs.length === 0;
+
   return (
     <View style={style.container}>
-      {songs == undefined ? (
-        <></>
-      ) : (
-        songs.map((song) => {
-          return (
-            <View style={style.songContainer} key={String(song.key)}>
-              <View style={style.songImgContainer}>
-                <Image
-                  source={{
-                    uri: song.thumbnail,
-                  }}
-                  style={style.songImg}
-                ></Image>
-              </View>
-              <View style={style.songDataContainer}>
-                <Text style={style.songName}>{song.name}</Text>
-                <Text style={style.songArtist}>{song.artist}</Text>
-              </View>
-            </View>
-          );
-        })
-      )}
+      {isSearching && <ActivityIndicator size="large" color="#1DB954" />}
+      {error && <Text style={style.message}>{error}</Text>}
+      {showEmptyState && <Text style={style.message}>No songs found for {query}.</Text>}
+      {songs.map((song) => (
+        <TouchableOpacity style={style.songContainer} key={song.videoId} onPress={() => onPressSong(song)} activeOpacity={0.7}>
+          <View style={style.songImgContainer}>
+            {song.thumbnailUrl && <Image source={{ uri: song.thumbnailUrl }} style={style.songImg} />}
+          </View>
+          <View style={style.songDataContainer}>
+            <Text numberOfLines={1} style={style.songName}>{song.title}</Text>
+            <Text numberOfLines={1} style={style.songArtist}>{song.artists.join(", ")}</Text>
+          </View>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
 
 const style = StyleSheet.create({
   container: {
-    flex: 9,
+    flex: 1,
     alignItems: "center",
+    paddingTop: 8,
   },
   songContainer: {
     padding: 10,
@@ -65,12 +64,19 @@ const style = StyleSheet.create({
     width: "80%",
     height: "80%",
     objectFit: "cover",
+    borderRadius: 8,
   },
   songName: {
-    fontWeight: 600,
+    fontWeight: "600",
     fontSize: 15,
   },
   songArtist: {
     fontSize: 13,
+  },
+  message: {
+    color: "#555",
+    fontSize: 15,
+    margin: 24,
+    textAlign: "center",
   },
 });

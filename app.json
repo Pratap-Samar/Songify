@@ -2,6 +2,15 @@
   "expo": {
     "name": "Songify",
     "slug": "Songify",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "android": {
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.WAKE_LOCK"
+      ],
+      "package": "com.songify.app"
+    }
   }
 }
