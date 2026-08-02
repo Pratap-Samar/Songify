@@ -24,11 +24,24 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function searchTracks(query: string, signal?: AbortSignal): Promise<Track[]> {
-  const response = await request<SearchResponse>(`/search?q=${encodeURIComponent(query)}`, signal);
-  return response.items;
+function proxyImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  // If it's already a relative URL or already proxied, leave it alone
+  if (url.startsWith("/")) return url;
+  return `${getApiBaseUrl()}/proxy/image?url=${encodeURIComponent(url)}`;
 }
 
-export function getPlaybackTrack(videoId: string): Promise<PlaybackTrack> {
-  return request<PlaybackTrack>(`/tracks/${encodeURIComponent(videoId)}/playback`);
+export async function searchTracks(query: string, signal?: AbortSignal): Promise<Track[]> {
+  const response = await request<SearchResponse>(`/search?q=${encodeURIComponent(query)}`, signal);
+  return response.items.map((track) => ({
+    ...track,
+    thumbnailUrl: proxyImageUrl(track.thumbnailUrl) || track.thumbnailUrl,
+  }));
+}
+
+export async function getPlaybackTrack(videoId: string): Promise<PlaybackTrack> {
+  const result = await request<PlaybackTrack>(`/tracks/${encodeURIComponent(videoId)}/playback`);
+  result.streamUrl = `${getApiBaseUrl()}${result.streamUrl}`;
+  result.thumbnailUrl = proxyImageUrl(result.thumbnailUrl) || result.thumbnailUrl;
+  return result;
 }

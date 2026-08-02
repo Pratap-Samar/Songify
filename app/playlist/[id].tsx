@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePlaylists, type PlaylistTrackEntry } from "@/lib/usePlaylists";
 import { searchTracks } from "@/lib/api";
 import type { Track } from "@/lib/music";
+import { theme } from "@/constants/theme";
 
 export default function PlaylistDetailScreen() {
   const router = useRouter();
@@ -77,7 +78,7 @@ export default function PlaylistDetailScreen() {
     <View style={style.container}>
       <View style={style.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1DB954" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <TextInput
           style={style.titleInput}
@@ -85,7 +86,7 @@ export default function PlaylistDetailScreen() {
           onChangeText={setPlaylistName}
           onBlur={() => handleRename(playlistName)}
           placeholder="Playlist name"
-          placeholderTextColor="#888"
+          placeholderTextColor={theme.colors.subtext}
         />
       </View>
       <FlatList
@@ -96,7 +97,7 @@ export default function PlaylistDetailScreen() {
             style={style.searchToggle}
             onPress={() => setShowSearch(!showSearch)}
           >
-            <Ionicons name="add" size={20} color="#1DB954" />
+            <Ionicons name="add" size={20} color={theme.colors.misc} />
             <Text style={style.searchToggleText}>Add track</Text>
           </TouchableOpacity>
         }
@@ -123,7 +124,7 @@ export default function PlaylistDetailScreen() {
               </View>
             </View>
             <TouchableOpacity onPress={() => handleRemoveTrack(item.videoId)}>
-              <Ionicons name="close-circle" size={22} color="#999" />
+              <Ionicons name="close-circle" size={22} color={theme.colors.notificationError} />
             </TouchableOpacity>
           </View>
         )}
@@ -133,7 +134,7 @@ export default function PlaylistDetailScreen() {
           <TextInput
             style={style.searchInput}
             placeholder="Search to add..."
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.colors.subtext}
             value={searchQuery}
             onChangeText={handleSearch}
           />
@@ -162,7 +163,11 @@ export default function PlaylistDetailScreen() {
 }
 
 const style = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F0EF" },
+  container: { 
+    ...StyleSheet.absoluteFillObject, 
+    overflow: "hidden",
+    backgroundColor: theme.colors.main,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -173,7 +178,7 @@ const style = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: "700",
-    color: "#222",
+    color: theme.colors.text,
   },
   searchSection: { paddingHorizontal: 16, paddingBottom: 8 },
   searchToggle: {
@@ -182,18 +187,22 @@ const style = StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
   },
-  searchToggleText: { color: "#1DB954", fontSize: 14, fontWeight: "600" },
+  searchToggleText: { color: theme.colors.misc, fontSize: 14, fontWeight: "600" },
   searchBar: {
     borderTopWidth: 1,
-    borderTopColor: "#ddd",
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
     padding: 12,
+    backgroundColor: theme.colors.player,
   },
   searchInput: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(0, 0, 0, 0.15)",
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 42,
     fontSize: 14,
+    color: theme.colors.text,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   searchResults: {
     maxHeight: 200,
@@ -202,24 +211,26 @@ const style = StyleSheet.create({
   searchResultItem: {
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
-  searchResultTitle: { fontSize: 14, fontWeight: "600" },
-  searchResultArtist: { fontSize: 12, color: "#888" },
+  searchResultTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
+  searchResultArtist: { fontSize: 12, color: theme.colors.subtext },
   trackItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
+    backgroundColor: theme.colors.card,
     padding: 10,
     marginHorizontal: 16,
     marginBottom: 6,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   trackInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   trackThumb: { width: 44, height: 44, borderRadius: 6 },
   trackText: { flex: 1 },
-  trackTitle: { fontSize: 14, fontWeight: "600" },
-  trackArtist: { fontSize: 12, color: "#888" },
-  empty: { textAlign: "center", color: "#888", marginTop: 40, fontSize: 15 },
+  trackTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
+  trackArtist: { fontSize: 12, color: theme.colors.subtext },
+  empty: { textAlign: "center", color: theme.colors.subtext, marginTop: 40, fontSize: 15 },
 });

@@ -7,6 +7,7 @@ import type { Track } from "@/lib/music";
 import Library from "./Library";
 import SearchBar from "./SearchBar";
 import NowPlayingBar from "./NowPlayingBar";
+import { theme } from "@/constants/theme";
 
 export default function App() {
   const router = useRouter();
@@ -75,6 +76,7 @@ export default function App() {
         error={error}
         query={form.trim()}
         onPressSong={handlePressSong}
+        currentTrackId={currentTrack?.videoId}
       ></Library>
       <NowPlayingBar
         currentTrack={currentTrack}
@@ -90,7 +92,8 @@ export default function App() {
 
 const style = StyleSheet.create({
   global: {
-    backgroundColor: "#F2F0EF",
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+    backgroundColor: theme.colors.main,
   },
 });
