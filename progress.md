@@ -42,3 +42,15 @@
 - For `repeat-one`, the handler safely rewinds the existing `<audio>` element (`currentTime = 0; play()`), preserving the network byte-stream instead of re-resolving a new URL.
 - Scaffolded basic Web Queue state (`webQueue` and `webQueueIndex`) directly in `lib/track-player.ts`.
 - Rewrote the Web `skipToNext()` and `skipToPrevious()` handlers to advance through `webQueue` and loop around safely when `repeat-all` is toggled. `onended` now successfully triggers `skipToNext()` when the track ends, fully replicating Native's `RepeatMode.Queue` behavior.
+
+## 9. Playback Performance / Stuttering Fix
+**The Issue:** Playing a track caused massive unnecessary UI blocking (the spinner would hang for 3-6 seconds) and severe CPU waste on the backend. This was due to React 18's Strict Mode double-mounting causing duplicate fetch requests, combined with the backend `/playback` route synchronously executing `yt-dlp` twice (once to verify the stream, and again when the audio player actually requested the proxy stream).
+**The Fix:** Added an `AbortSignal` in `PlayerScreen.tsx` to immediately cancel redundant fetches. Removed the redundant synchronous `resolve_stream_url` call from the `/playback` route in `main.py`, allowing metadata to return instantly and leaving the single cached `yt-dlp` execution entirely up to the `/proxy/audio` route.
+
+## 10. Play/Pause Icon UI Sync Fix
+**The Issue:** The play/pause icon on both the mini-player and full-screen player would permanently remain stuck on "Play" even while audio was playing.
+**The Fix:** The `TrackPlayer` fork's native listener emits the raw enum value in lowercase (e.g. `"playing"`, `"paused"`), but the UI explicitly checked for capitalized strings (`"Playing"`). Updated `addPlaybackStateListener` in `lib/track-player.ts` to map the raw lowercase strings to the capitalized strings expected by the UI.
+
+## 11. Native Android Repeat Mode / Proxy Audio Stalling Fix
+**The Issue:** When looping was enabled on a single track, the native Android player (`ExoPlayer`) would silently intercept the end of the queue and attempt to repeat the track internally by seeking the stream back to `0:00`. This caused the backend proxy connection to stall or fail to resume, resulting in the audio silently stopping without emitting a `PlaybackQueueEnded` event. Furthermore, the `KotlinAudio` implementation in the fork had completely swapped the ordinal values for `RepeatMode.Track` and `RepeatMode.Queue`, causing the opposite loop behavior natively.
+**The Fix:** Completely bypassed Native RepeatMode by modifying `setRepeatMode` in `lib/track-player.ts` to ALWAYS tell the native player that Repeat Mode is `Off`. This guarantees that `ExoPlayer` cleanly reaches the end of the track and consistently fires `PlaybackQueueEnded`. A Javascript fallback listener then catches this event and manually restarts playback via `TrackPlayer.skip(0)` and `TrackPlayer.play()`, completely avoiding the proxy seeking bug and rendering the native ordinal mismatch irrelevant.

@@ -3,7 +3,12 @@ import { StyleSheet, View, Platform } from "react-native";
 import TrackPlayer from "@javascriptcommon/react-native-track-player";
 
 if (Platform.OS !== "web") {
-  TrackPlayer.registerPlaybackService(() => require("../playback-service"));
+  console.log("[App Layout] Calling TrackPlayer.registerPlaybackService...");
+  TrackPlayer.registerPlaybackService(() => {
+    console.log("[App Layout] Playback service is actually executing!");
+    return require("../playback-service");
+  });
+  console.log("[App Layout] TrackPlayer.registerPlaybackService completed.");
 }
 
 export default function RootLayout() {

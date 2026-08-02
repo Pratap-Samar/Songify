@@ -99,7 +99,7 @@ export default function NowPlayingBar({
               {track.title ?? "No track selected"}
             </Text>
             <Text numberOfLines={1} style={style.artist}>
-              {track.artists?.join(", ") ?? ""}
+              {(track.artists ?? []).join(", ") || ""}
             </Text>
           </View>
         </View>

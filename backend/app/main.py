@@ -255,10 +255,6 @@ def playback(video_id: str) -> PlaybackResponse:
     if track is None:
         raise HTTPException(status_code=404, detail="Track not found")
 
-    resolved = resolve_stream_url(video_id)
-    if resolved is None:
-        raise HTTPException(status_code=404, detail="No playable audio stream is available")
-
     return PlaybackResponse(
         **track.model_dump(),
         stream_url=f"/proxy/audio/{video_id}",

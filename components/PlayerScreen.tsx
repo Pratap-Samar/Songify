@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -30,6 +30,7 @@ function fmt(seconds: number): string {
 
 export default function PlayerScreen({ videoId }: { videoId: string }) {
   const router = useRouter();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [track, setTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +64,8 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   useEffect(() => {
     let active = true;
 
+    const abortController = new AbortController();
+
     async function load() {
       try {
         // 1. Check if the player is already playing this exact track
@@ -77,13 +80,14 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
         }
 
         // 2. Otherwise, fetch and start fresh
-        const result = await getPlaybackTrack(videoId);
+        const result = await getPlaybackTrack(videoId, abortController.signal);
         if (!active) return;
         setTrack(result);
         await playTrack(result);
         setIsPlaying(true);
       } catch (e) {
         if (active) {
+          if (e instanceof Error && e.name === "AbortError") return;
           setError(
             e instanceof Error
               ? e.message
@@ -109,6 +113,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
 
     return () => {
       active = false;
+      abortController.abort();
       stateUnsub?.remove?.();
       trackUnsub?.remove?.();
     };
@@ -144,17 +149,24 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
     setRepeat(nextMode);
   };
 
+  // ── Layout Calculations ─────────────────────────────────────────
+  // Artwork should be roughly 70-80% of width, max 320.
+  const artworkSize = Math.min(screenWidth * 0.75, 340);
+  
+  // Compact layout adjustments for smaller screens
+  const isCompact = screenHeight < 700;
+
   // ── Render ──────────────────────────────────────────────────────
   return (
     <View style={style.container}>
-      <View style={style.header}>
+      <View style={[style.header, isCompact && { paddingTop: 24, paddingBottom: 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={style.iconButton}>
           <Ionicons name="chevron-down" size={32} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={style.headerTitle}>Now Playing</Text>
         <View style={{ width: 32 }} />
       </View>
-      <View style={style.content}>
+      <View style={[style.content, isCompact && { paddingTop: 16 }]}>
         {error ? (
           <View style={style.errorContainer}>
             <Ionicons name="alert-circle" size={48} color={theme.colors.notificationError} />
@@ -168,8 +180,8 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
             </TouchableOpacity>
           </View>
         ) : (
-          <>
-            <View style={style.artworkContainer}>
+          <View style={style.playerLayout}>
+            <View style={[style.artworkContainer, { width: artworkSize, height: artworkSize, marginBottom: isCompact ? 24 : 40 }]}>
               {track?.thumbnailUrl && (
                 <Image
                   source={{ uri: track.thumbnailUrl }}
@@ -177,72 +189,74 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                 />
               )}
             </View>
-            <View style={style.textContainer}>
-              <Text numberOfLines={1} style={style.title}>
-                {track?.title ?? "Loading..."}
-              </Text>
-              <Text numberOfLines={1} style={style.artist}>
-                {track?.artists.join(", ") ?? ""}
-              </Text>
-            </View>
-
-            {/* ── Seek bar + time labels ──────────────────── */}
-            <View style={style.seekContainer}>
-              <View
-                style={style.seekTrack}
-                onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
-                onStartShouldSetResponder={() => duration > 0}
-                onMoveShouldSetResponder={() => true}
-                onResponderGrant={(e) => handleSeekStart(e.nativeEvent.locationX)}
-                onResponderMove={(e) => handleSeekMove(e.nativeEvent.locationX)}
-                onResponderRelease={handleSeekEnd}
-                onResponderTerminate={handleSeekEnd}
-              >
-                <View style={[style.seekFill, { width: `${displayPct * 100}%` }]} />
-                {seeking && (
-                  <View style={[style.seekThumb, { left: `${displayPct * 100}%` }]} />
-                )}
-              </View>
-              <View style={style.timeRow}>
-                <Text style={style.timeText}>{fmt(displayPos)}</Text>
-                <Text style={style.timeText}>
-                  {duration > 0 ? `-${fmt(duration - displayPos)}` : fmt(0)}
+            <View style={style.bottomSection}>
+              <View style={style.textContainer}>
+                <Text numberOfLines={1} style={[style.title, isCompact && { fontSize: 20 }]}>
+                  {track?.title ?? "Loading..."}
+                </Text>
+                <Text numberOfLines={1} style={[style.artist, isCompact && { fontSize: 16 }]}>
+                  {(track?.artists ?? []).join(", ") || ""}
                 </Text>
               </View>
-            </View>
 
-            <View style={style.controls}>
-              <TouchableOpacity onPress={toggleRepeatMode} style={style.secondaryBtn}>
-                <Ionicons 
-                  name={repeat === 'track' ? "repeat-outline" : "repeat"} 
-                  size={24} 
-                  color={repeat === 'off' ? theme.colors.subtext : theme.colors.button} 
-                />
-                {repeat === 'track' && <Text style={style.repeatOneBadge}>1</Text>}
-              </TouchableOpacity>
-              
-              <TouchableOpacity onPress={skipToPrevious}>
-                <Ionicons name="play-skip-back" size={40} color={theme.colors.text} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity onPress={togglePlayPause} style={style.playBtn}>
-                <Ionicons
-                  name={isPlaying ? "pause" : "play"}
-                  size={40}
-                  color={theme.colors.main}
-                  style={{ marginLeft: isPlaying ? 0 : 4 }}
-                />
-              </TouchableOpacity>
-              
-              <TouchableOpacity onPress={skipToNext}>
-                <Ionicons name="play-skip-forward" size={40} color={theme.colors.text} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity onPress={() => setShowPlaylistModal(true)} style={style.secondaryBtn}>
-                <Ionicons name="add-circle-outline" size={26} color={theme.colors.text} />
-              </TouchableOpacity>
+              {/* ── Seek bar + time labels ──────────────────── */}
+              <View style={[style.seekContainer, isCompact && { marginTop: 16 }]}>
+                <View
+                  style={style.seekTrack}
+                  onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
+                  onStartShouldSetResponder={() => duration > 0}
+                  onMoveShouldSetResponder={() => true}
+                  onResponderGrant={(e) => handleSeekStart(e.nativeEvent.locationX)}
+                  onResponderMove={(e) => handleSeekMove(e.nativeEvent.locationX)}
+                  onResponderRelease={handleSeekEnd}
+                  onResponderTerminate={handleSeekEnd}
+                >
+                  <View style={[style.seekFill, { width: `${displayPct * 100}%` }]} />
+                  {seeking && (
+                    <View style={[style.seekThumb, { left: `${displayPct * 100}%` }]} />
+                  )}
+                </View>
+                <View style={style.timeRow}>
+                  <Text style={style.timeText}>{fmt(displayPos)}</Text>
+                  <Text style={style.timeText}>
+                    {duration > 0 ? `-${fmt(duration - displayPos)}` : fmt(0)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[style.controls, isCompact && { marginTop: 16, marginBottom: 16 }]}>
+                <TouchableOpacity onPress={toggleRepeatMode} style={style.secondaryBtn}>
+                  <Ionicons 
+                    name={repeat === 'track' ? "repeat-outline" : "repeat"} 
+                    size={24} 
+                    color={repeat === 'off' ? theme.colors.subtext : theme.colors.button} 
+                  />
+                  {repeat === 'track' && <Text style={style.repeatOneBadge}>1</Text>}
+                </TouchableOpacity>
+                
+                <TouchableOpacity onPress={skipToPrevious}>
+                  <Ionicons name="play-skip-back" size={isCompact ? 32 : 40} color={theme.colors.text} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity onPress={togglePlayPause} style={[style.playBtn, isCompact && { width: 60, height: 60, borderRadius: 30 }]}>
+                  <Ionicons
+                    name={isPlaying ? "pause" : "play"}
+                    size={isCompact ? 32 : 40}
+                    color={theme.colors.main}
+                    style={{ marginLeft: isPlaying ? 0 : 4 }}
+                  />
+                </TouchableOpacity>
+                
+                <TouchableOpacity onPress={skipToNext}>
+                  <Ionicons name="play-skip-forward" size={isCompact ? 32 : 40} color={theme.colors.text} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity onPress={() => setShowPlaylistModal(true)} style={style.secondaryBtn}>
+                  <Ionicons name="add-circle-outline" size={26} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
             </View>
-          </>
+          </View>
         )}
       </View>
       <AddToPlaylistModal 
@@ -280,25 +294,29 @@ const style = StyleSheet.create({
   },
   content: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-start",
     paddingHorizontal: 32,
-    paddingTop: 32,
+  },
+  playerLayout: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
   },
   artworkContainer: {
-    width: "100%",
-    aspectRatio: 1,
     shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 10,
-    marginBottom: 40,
   },
   artwork: {
     width: "100%",
     height: "100%",
     borderRadius: 16,
+  },
+  bottomSection: {
+    width: "100%",
+    paddingBottom: 24,
   },
   textContainer: {
     alignSelf: "stretch",

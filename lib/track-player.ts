@@ -1,6 +1,5 @@
 import { Platform } from "react-native";
-import TrackPlayer from "@javascriptcommon/react-native-track-player";
-import { Capability, Event, State, RepeatMode } from "@javascriptcommon/react-native-track-player";
+import TrackPlayer, { Capability, Event, State, RepeatMode } from "@javascriptcommon/react-native-track-player";
 import type { Track } from "./music";
 
 const isWeb = Platform.OS === "web";
@@ -10,6 +9,7 @@ let webAudio: HTMLAudioElement | null = null;
 let webCurrentTrack: (Track & { streamUrl: string }) | null = null;
 let webState = "None";
 let webRepeatMode: 'off' | 'track' | 'queue' = 'off';
+let nativeRepeatMode: 'off' | 'track' | 'queue' = 'off';
 let webQueue: (Track & { streamUrl: string })[] = [];
 let webQueueIndex = -1;
 const webStateListeners = new Set<(s: string) => void>();
@@ -91,23 +91,83 @@ function mapTrack(track: Track & { streamUrl: string }) {
     title: track.title,
     artist: track.artists.join(", "),
     artwork: track.thumbnailUrl ?? "",
-    duration: track.durationMs ?? 0,
+    duration: track.durationMs ? track.durationMs / 1000 : 0,
     genre: "Music",
+  };
+}
+
+function unmapTrack(item: any): Track & { streamUrl: string } {
+  if (!item) return item;
+  return {
+    videoId: item.id,
+    streamUrl: item.url,
+    title: item.title,
+    artists: item.artist ? item.artist.split(", ") : [],
+    thumbnailUrl: item.artwork || null,
+    durationMs: item.duration || null,
+    album: null,
   };
 }
 
 // ── Exported API ──────────────────────────────────────────────────
 
+let nativePlayerReady = false;
+let setupPromise: Promise<void> | null = null;
+
 export async function setupPlayer() {
+  console.log("[TrackPlayer] setupPlayer called. isWeb:", isWeb, "nativePlayerReady:", nativePlayerReady);
   if (isWeb) return webSetupPlayer();
+  if (nativePlayerReady) return;
   try {
+    console.log("[TrackPlayer] Calling TrackPlayer.setupPlayer({})...");
     await TrackPlayer.setupPlayer({});
+    console.log("[TrackPlayer] setupPlayer({}) succeeded. Calling updateOptions...");
     await TrackPlayer.updateOptions({
+      progressUpdateEventInterval: 1,
       capabilities: [Capability.Play, Capability.Pause, Capability.Stop, Capability.SeekTo, Capability.Skip, Capability.SkipToNext, Capability.SkipToPrevious],
       compactCapabilities: [Capability.Play, Capability.Pause, Capability.SeekTo, Capability.Skip],
       notificationCapabilities: [Capability.Play, Capability.Pause, Capability.Stop, Capability.SeekTo, Capability.Skip, Capability.SkipToNext, Capability.SkipToPrevious],
     });
-  } catch { /* already set up */ }
+    console.log("[TrackPlayer] updateOptions succeeded. Player is ready.");
+
+    TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async (event) => {
+      console.log("[TrackPlayer] PlaybackQueueEnded fired. nativeRepeatMode:", nativeRepeatMode);
+      if (nativeRepeatMode === 'track' || nativeRepeatMode === 'queue') {
+        const queue = await TrackPlayer.getQueue();
+        if (queue && queue.length > 0) {
+          console.log("[TrackPlayer] Looping playback via JS fallback. Skipping to 0...");
+          await TrackPlayer.skip(0);
+          await TrackPlayer.play();
+        }
+      }
+    });
+
+    nativePlayerReady = true;
+    setupPromise = null;
+  } catch (e: any) {
+    // "The player has already been initialized" is harmless
+    if (e?.message?.includes("already been initialized")) {
+      console.log("[TrackPlayer] Player was already initialized (harmless).");
+      nativePlayerReady = true;
+      setupPromise = null;
+    } else {
+      console.error("[TrackPlayer] setupPlayer explicitly failed with error:", e, "Message:", e?.message);
+      setupPromise = null;
+      throw e;
+    }
+  }
+}
+
+/** Ensure setupPlayer runs exactly once and all callers share the same promise */
+function ensureSetup(): Promise<void> {
+  if (nativePlayerReady) return Promise.resolve();
+  if (!setupPromise) {
+    console.log("[TrackPlayer] ensureSetup: initializing new setupPromise");
+    setupPromise = setupPlayer();
+  } else {
+    console.log("[TrackPlayer] ensureSetup: returning existing setupPromise");
+  }
+  return setupPromise;
 }
 
 export function getTrackPlayer() { return TrackPlayer; }
@@ -115,8 +175,8 @@ export function getTrackPlayer() { return TrackPlayer; }
 export { mapTrack as mapTrackToTrackPlayerItem };
 
 export async function playTrack(track: Track & { streamUrl: string }) {
-  await setupPlayer();
   if (isWeb) {
+    await webSetupPlayer();
     await webReset();
     webQueue = [track];
     webQueueIndex = 0;
@@ -124,14 +184,21 @@ export async function playTrack(track: Track & { streamUrl: string }) {
     await webPlay();
     return;
   }
+  await ensureSetup();
   await TrackPlayer.reset();
-  await TrackPlayer.add(mapTrack(track));
+  const mapped = mapTrack(track);
+  await TrackPlayer.add(mapped);
+  
+  // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
+  // Our JS fallback in PlaybackQueueEnded will manually loop the track.
+  await TrackPlayer.setRepeatMode(RepeatMode.Off);
+  
   await TrackPlayer.play();
 }
 
 export async function playOrUpdateQueue(tracks: (Track & { streamUrl: string })[], index = 0) {
-  await setupPlayer();
   if (isWeb) {
+    await webSetupPlayer();
     await webReset();
     webQueue = tracks;
     webQueueIndex = index;
@@ -141,8 +208,15 @@ export async function playOrUpdateQueue(tracks: (Track & { streamUrl: string })[
     }
     return;
   }
+  await ensureSetup();
   await TrackPlayer.reset();
-  const ids = await TrackPlayer.add(tracks.map(mapTrack));
+  const mappedTracks = tracks.map(mapTrack);
+  const ids = await TrackPlayer.add(mappedTracks);
+  
+  // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
+  // Our JS fallback in PlaybackQueueEnded will manually loop the track.
+  await TrackPlayer.setRepeatMode(RepeatMode.Off);
+  
   if (typeof ids === "number" && ids >= 0) await TrackPlayer.skip(ids);
   else if (Array.isArray(ids) && ids.length > index) await TrackPlayer.skip(ids[index]);
   await TrackPlayer.play();
@@ -164,6 +238,7 @@ export async function skipToNext() {
     }
     return;
   }
+  await ensureSetup();
   return TrackPlayer.skipToNext();
 }
 
@@ -180,6 +255,7 @@ export async function skipToPrevious() {
     }
     return;
   }
+  await ensureSetup();
   return TrackPlayer.skipToPrevious();
 }
 
@@ -189,13 +265,15 @@ export async function togglePlayPause() {
     else { webPlay(); }
     return;
   }
-  const state = await TrackPlayer.getState();
+  await ensureSetup();
+  const { state } = await TrackPlayer.getPlaybackState();
   if (state === State.Playing) await TrackPlayer.pause();
   else await TrackPlayer.play();
 }
 
 export async function seekTo(position: number) {
   if (isWeb) { getAudio().currentTime = position; return; }
+  await ensureSetup();
   await TrackPlayer.seekTo(position);
 }
 
@@ -204,7 +282,22 @@ export function addPlaybackStateListener(callback: (state: string) => void) {
     webStateListeners.add(callback);
     return { remove: () => webStateListeners.delete(callback) };
   }
-  return TrackPlayer.addEventListener(Event.PlaybackState, (event) => { callback((event as { state: string }).state as string); });
+  // Defer native listener until player is initialized
+  let nativeSub: { remove: () => void } | null = null;
+  let cancelled = false;
+  ensureSetup().then(() => {
+    if (cancelled) return;
+    nativeSub = TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
+      const rawState = (event as { state: string }).state;
+      let mappedState = "None";
+      if (rawState === State.Playing) mappedState = "Playing";
+      else if (rawState === State.Paused) mappedState = "Paused";
+      else if (rawState === State.Stopped) mappedState = "Stopped";
+      else if (rawState === State.Buffering) mappedState = "Buffering";
+      callback(mappedState);
+    });
+  });
+  return { remove: () => { cancelled = true; nativeSub?.remove?.(); } };
 }
 
 export function addTrackChangeListener(callback: (track: Track & { streamUrl: string }) => void) {
@@ -212,10 +305,16 @@ export function addTrackChangeListener(callback: (track: Track & { streamUrl: st
     webTrackListeners.add(callback);
     return { remove: () => webTrackListeners.delete(callback) };
   }
-  return TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event) => {
-    const track = (event as { track: Track | undefined }).track;
-    if (track) callback(track as unknown as Track & { streamUrl: string });
+  let nativeSub: { remove: () => void } | null = null;
+  let cancelled = false;
+  ensureSetup().then(() => {
+    if (cancelled) return;
+    nativeSub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event) => {
+      const track = (event as { track: any }).track;
+      if (track) callback(unmapTrack(track));
+    });
   });
+  return { remove: () => { cancelled = true; nativeSub?.remove?.(); } };
 }
 
 export function addProgressListener(callback: (position: number, duration: number) => void) {
@@ -223,21 +322,30 @@ export function addProgressListener(callback: (position: number, duration: numbe
     webProgressListeners.add(callback);
     return { remove: () => webProgressListeners.delete(callback) };
   }
-  return TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, (event) => {
-    callback(event.position, event.duration);
+  let nativeSub: { remove: () => void } | null = null;
+  let cancelled = false;
+  ensureSetup().then(() => {
+    if (cancelled) return;
+    nativeSub = TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, (event) => {
+      callback(event.position, event.duration);
+    });
   });
+  return { remove: () => { cancelled = true; nativeSub?.remove?.(); } };
 }
 
 export async function getActiveTrack() {
   if (isWeb) return webCurrentTrack;
+  await ensureSetup();
   const index = await TrackPlayer.getActiveTrackIndex();
   if (index === undefined || index === null) return null;
-  return TrackPlayer.getTrack(index);
+  const nativeTrack = await TrackPlayer.getTrack(index);
+  return nativeTrack ? unmapTrack(nativeTrack) : null;
 }
 
 export async function getPlaybackState(): Promise<string> {
   if (isWeb) return webState;
-  const state = await TrackPlayer.getState();
+  await ensureSetup();
+  const { state } = await TrackPlayer.getPlaybackState();
   if (state === State.Playing) return "Playing";
   if (state === State.Paused) return "Paused";
   if (state === State.Stopped) return "Stopped";
@@ -250,16 +358,17 @@ export async function setRepeatMode(mode: 'off' | 'track' | 'queue') {
     webRepeatMode = mode;
     return;
   }
-  const rm = mode === 'track' ? RepeatMode.Track : mode === 'queue' ? RepeatMode.Queue : RepeatMode.Off;
-  await TrackPlayer.setRepeatMode(rm);
+  await ensureSetup();
+  nativeRepeatMode = mode;
+  
+  // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
+  // Our JS fallback in PlaybackQueueEnded will manually loop the track.
+  await TrackPlayer.setRepeatMode(RepeatMode.Off);
 }
 
 export async function getRepeatMode(): Promise<'off' | 'track' | 'queue'> {
   if (isWeb) {
     return webRepeatMode;
   }
-  const rm = await TrackPlayer.getRepeatMode();
-  if (rm === RepeatMode.Track) return 'track';
-  if (rm === RepeatMode.Queue) return 'queue';
-  return 'off';
+  return nativeRepeatMode;
 }
