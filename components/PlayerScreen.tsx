@@ -2,13 +2,11 @@ import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { getPlaybackTrack } from "@/lib/api";
 import { theme } from "@/constants/theme";
 import {
   addPlaybackStateListener,
   addProgressListener,
   addTrackChangeListener,
-  playTrack,
   seekTo,
   skipToNext,
   skipToPrevious,
@@ -60,44 +58,27 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
     getRepeatMode().then(setRepeat);
   }, []);
 
-  // ── Track loading ───────────────────────────────────────────────
+  // ── Track synchronization ─────────────────────────────────────────
   useEffect(() => {
     let active = true;
 
-    const abortController = new AbortController();
-
-    async function load() {
+    async function syncState() {
       try {
-        // 1. Check if the player is already playing this exact track
         const activeT = await getActiveTrack();
-        if (activeT && (activeT as any).videoId === videoId) {
+        if (activeT) {
           if (!active) return;
-          // Just attach to the existing state, don't restart playback!
           setTrack(activeT as unknown as Track);
           const state = await getPlaybackState();
           setIsPlaying(state === "Playing");
-          return;
         }
-
-        // 2. Otherwise, fetch and start fresh
-        const result = await getPlaybackTrack(videoId, abortController.signal);
-        if (!active) return;
-        setTrack(result);
-        await playTrack(result);
-        setIsPlaying(true);
       } catch (e) {
         if (active) {
-          if (e instanceof Error && e.name === "AbortError") return;
-          setError(
-            e instanceof Error
-              ? e.message
-              : "Unable to load this track."
-          );
+          setError(e instanceof Error ? e.message : "Unable to sync player state.");
         }
       }
     }
 
-    load();
+    syncState();
 
     const stateUnsub = addPlaybackStateListener((state) => {
       if (!active) return;
@@ -113,7 +94,6 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
 
     return () => {
       active = false;
-      abortController.abort();
       stateUnsub?.remove?.();
       trackUnsub?.remove?.();
     };
@@ -160,7 +140,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   return (
     <View style={style.container}>
       <View style={[style.header, isCompact && { paddingTop: 24, paddingBottom: 8 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={style.iconButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={style.iconButton}>
           <Ionicons name="chevron-down" size={32} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={style.headerTitle}>Now Playing</Text>
@@ -174,7 +154,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
             <Text style={style.errorMessage}>{error}</Text>
             <TouchableOpacity
               style={style.retryBtn}
-              onPress={() => router.back()}
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
             >
               <Text style={style.retryBtnText}>Go back</Text>
             </TouchableOpacity>

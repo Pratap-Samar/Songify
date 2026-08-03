@@ -1,25 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { initDb } from "@/lib/database";
 import { searchTracks } from "@/lib/api";
 import type { Track } from "@/lib/music";
-import Library from "./Library";
-import SearchBar from "./SearchBar";
-import NowPlayingBar from "./NowPlayingBar";
+import Library from "@/components/Library";
+import SearchBar from "@/components/SearchBar";
 import { theme } from "@/constants/theme";
+import { useResponsive } from "@/lib/useResponsive";
 
-export default function App() {
+export default function SearchTab() {
   const router = useRouter();
   const [form, setForm] = useState<string>("");
   const [songs, setSongs] = useState<Track[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-
-  useEffect(() => {
-    initDb();
-  }, []);
+  const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
+  const { contentMaxWidth, spacing } = useResponsive();
 
   useEffect(() => {
     const query = form.trim();
@@ -55,7 +51,7 @@ export default function App() {
   }, [form]);
 
   const handlePressSong = (track: Track) => {
-    setCurrentTrack(track);
+    setCurrentTrackId(track.videoId);
     import("@/lib/playback").then(({ playAndOpenPlayer }) => {
       playAndOpenPlayer(track.videoId, router);
     });
@@ -67,27 +63,24 @@ export default function App() {
 
   return (
     <View style={style.global}>
-      <SearchBar
-        form={form}
-        handleChange={setForm}
-        handleClearSearch={handleClearSearch}
-      ></SearchBar>
-      <Library
-        songs={songs}
-        isSearching={isSearching}
-        error={error}
-        query={form.trim()}
-        onPressSong={handlePressSong}
-        currentTrackId={currentTrack?.videoId}
-      ></Library>
-      <NowPlayingBar
-        currentTrack={currentTrack}
-        onPress={() => {
-          if (currentTrack) {
-            router.push({ pathname: "/player", params: { videoId: currentTrack.videoId } });
-          }
-        }}
-      ></NowPlayingBar>
+      <View style={[style.content, { maxWidth: contentMaxWidth }]}>
+        {/* We need to pass autoFocus down if SearchBar supports it, otherwise we'll modify SearchBar too */}
+        <SearchBar
+          form={form}
+          handleChange={setForm}
+          handleClearSearch={handleClearSearch}
+          autoFocus={true}
+          onBack={() => router.back()}
+        />
+        <Library
+          songs={songs}
+          isSearching={isSearching}
+          error={error}
+          query={form.trim()}
+          onPressSong={handlePressSong}
+          currentTrackId={currentTrackId ?? undefined}
+        />
+      </View>
     </View>
   );
 }
@@ -97,5 +90,10 @@ const style = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
     backgroundColor: theme.colors.main,
+    alignItems: "center",
+  },
+  content: {
+    flex: 1,
+    width: "100%",
   },
 });

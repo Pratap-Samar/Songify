@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import TrackPlayer, { Capability, Event, State, RepeatMode } from "@javascriptcommon/react-native-track-player";
 import type { Track } from "./music";
+import { addToHistory } from "./database";
 
 const isWeb = Platform.OS === "web";
 
@@ -170,24 +171,40 @@ function ensureSetup(): Promise<void> {
   return setupPromise;
 }
 
+let latestPlayId = 0;
+
 export function getTrackPlayer() { return TrackPlayer; }
 
 export { mapTrack as mapTrackToTrackPlayerItem };
 
 export async function playTrack(track: Track & { streamUrl: string }) {
+  console.log(`[TrackPlayer] playTrack called for "${track.title}"`);
+  
+  // Directly log to history so it's guaranteed
+  const safeTrack = { ...track, title: track.title || "Unknown Title", artists: track.artists || [] } as unknown as Track;
+  addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
+
+  const playId = ++latestPlayId;
+
   if (isWeb) {
     await webSetupPlayer();
+    if (latestPlayId !== playId) return;
     await webReset();
     webQueue = [track];
     webQueueIndex = 0;
     await webAdd([mapTrack(track)]);
+    if (latestPlayId !== playId) return;
     await webPlay();
     return;
   }
   await ensureSetup();
+  if (latestPlayId !== playId) return;
   await TrackPlayer.reset();
+  if (latestPlayId !== playId) return;
+  
   const mapped = mapTrack(track);
   await TrackPlayer.add(mapped);
+  if (latestPlayId !== playId) return;
   
   // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
   // Our JS fallback in PlaybackQueueEnded will manually loop the track.
@@ -197,21 +214,36 @@ export async function playTrack(track: Track & { streamUrl: string }) {
 }
 
 export async function playOrUpdateQueue(tracks: (Track & { streamUrl: string })[], index = 0) {
+  const current = tracks[index];
+  if (current) {
+    console.log(`[TrackPlayer] playOrUpdateQueue called. Active track: "${current.title}"`);
+    const safeTrack = { ...current, title: current.title || "Unknown Title", artists: current.artists || [] } as unknown as Track;
+    addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
+  }
+
+  const playId = ++latestPlayId;
+
   if (isWeb) {
     await webSetupPlayer();
+    if (latestPlayId !== playId) return;
     await webReset();
     webQueue = tracks;
     webQueueIndex = index;
     if (tracks[index]) {
       await webAdd([mapTrack(tracks[index])]);
+      if (latestPlayId !== playId) return;
       await webPlay();
     }
     return;
   }
   await ensureSetup();
+  if (latestPlayId !== playId) return;
   await TrackPlayer.reset();
+  if (latestPlayId !== playId) return;
+  
   const mappedTracks = tracks.map(mapTrack);
   const ids = await TrackPlayer.add(mappedTracks);
+  if (latestPlayId !== playId) return;
   
   // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
   // Our JS fallback in PlaybackQueueEnded will manually loop the track.
@@ -219,6 +251,8 @@ export async function playOrUpdateQueue(tracks: (Track & { streamUrl: string })[
   
   if (typeof ids === "number" && ids >= 0) await TrackPlayer.skip(ids);
   else if (Array.isArray(ids) && ids.length > index) await TrackPlayer.skip(ids[index]);
+  
+  if (latestPlayId !== playId) return;
   await TrackPlayer.play();
 }
 

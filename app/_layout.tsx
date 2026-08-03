@@ -11,7 +11,18 @@ if (Platform.OS !== "web") {
   console.log("[App Layout] TrackPlayer.registerPlaybackService completed.");
 }
 
+import { useEffect, useState } from "react";
+import { initDb } from "@/lib/database";
+
 export default function RootLayout() {
+  const [dbReady, setDbReady] = useState(false);
+
+  useEffect(() => {
+    initDb().then(() => setDbReady(true)).catch(console.error);
+  }, []);
+
+  if (!dbReady) return null;
+
   return (
     <View style={style.root}>
       <Slot />

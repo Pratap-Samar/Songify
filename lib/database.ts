@@ -1,4 +1,5 @@
 import type { Track } from "./music";
+import { notifyHistoryChanged } from "./historyEvents";
 
 export interface Playlist {
   id: number;
@@ -39,19 +40,19 @@ function getDb() {
   return db;
 }
 
-export function initDb() {
+export async function initDb() {
   const database = getDb();
   if (!database) return;
-  database.execAsync(
+  console.log("[Database] Running initDb()...");
+  await database.execAsync(
     `CREATE TABLE IF NOT EXISTS playlists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      artwork TEXT,
       createdAt TEXT NOT NULL DEFAULT (datetime('now')),
       updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
-    );`
-  );
-  database.execAsync(
-    `CREATE TABLE IF NOT EXISTS playlist_tracks (
+    );
+    CREATE TABLE IF NOT EXISTS playlist_tracks (
       playlistId INTEGER NOT NULL,
       videoId TEXT NOT NULL,
       title TEXT NOT NULL,
@@ -62,8 +63,21 @@ export function initDb() {
       position INTEGER NOT NULL,
       FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE CASCADE,
       PRIMARY KEY (playlistId, videoId)
+    );
+    CREATE TABLE IF NOT EXISTS recent_plays (
+      videoId TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      artists TEXT NOT NULL,
+      album TEXT,
+      durationMs INTEGER,
+      thumbnailUrl TEXT,
+      lastPlayedAt TEXT NOT NULL DEFAULT (datetime('now'))
     );`
   );
+  
+
+  
+  console.log("[Database] initDb() completed successfully.");
 }
 
 export async function getPlaylists(): Promise<Playlist[]> {
@@ -126,9 +140,9 @@ export async function addTrackToPlaylist(
       track.videoId,
       track.title,
       JSON.stringify(track.artists),
-      track.album,
-      track.durationMs,
-      track.thumbnailUrl,
+      typeof track.album === "object" && track.album !== null ? (track.album as any).name || JSON.stringify(track.album) : (track.album ?? ""),
+      track.durationMs ?? 0,
+      track.thumbnailUrl ?? "",
       playlistId,
     ]
   );
@@ -157,4 +171,47 @@ export async function reorderPlaylistTrack(
     "UPDATE playlist_tracks SET position = ?, updatedAt = datetime('now') WHERE playlistId = ? AND videoId = ?;",
     [newPosition, playlistId, videoId]
   );
+}
+
+
+
+export async function addToHistory(track: Track): Promise<void> {
+  const database = getDb();
+  if (!database) return;
+  const params = [
+    track.videoId,
+    track.title,
+    JSON.stringify(track.artists),
+    typeof track.album === "object" && track.album !== null ? (track.album as any).name || JSON.stringify(track.album) : (track.album ?? ""),
+    track.durationMs ?? 0,
+    track.thumbnailUrl ?? "",
+  ];
+  
+  await database.runAsync(
+    `INSERT INTO recent_plays (videoId, title, artists, album, durationMs, thumbnailUrl, lastPlayedAt)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(videoId) DO UPDATE SET lastPlayedAt = datetime('now');`,
+    ...params
+  );
+  console.log(`[Database] addToHistory: Completed for "${track.title}". Notifying listeners.`);
+  notifyHistoryChanged();
+}
+
+export async function getHistory(limit = 20): Promise<Track[]> {
+  const database = getDb();
+  if (!database) return [];
+  console.log(`[Database] getHistory: Fetching top ${limit} recent_plays...`);
+  const rows = await database.getAllAsync<any>(
+    "SELECT videoId, title, artists, album, durationMs, thumbnailUrl FROM recent_plays ORDER BY lastPlayedAt DESC LIMIT ?;",
+    [limit]
+  );
+  console.log(`[Database] getHistory: Found ${rows.length} rows.`);
+  return rows.map((r) => ({
+    videoId: r.videoId,
+    title: r.title,
+    artists: JSON.parse(r.artists),
+    album: r.album,
+    durationMs: r.durationMs,
+    thumbnailUrl: r.thumbnailUrl,
+  }));
 }
