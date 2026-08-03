@@ -39,8 +39,8 @@ export async function searchTracks(query: string, signal?: AbortSignal): Promise
   }));
 }
 
-export async function getPlaybackTrack(videoId: string): Promise<PlaybackTrack> {
-  const result = await request<PlaybackTrack>(`/tracks/${encodeURIComponent(videoId)}/playback`);
+export async function getPlaybackTrack(videoId: string, signal?: AbortSignal): Promise<PlaybackTrack> {
+  const result = await request<PlaybackTrack>(`/tracks/${encodeURIComponent(videoId)}/playback`, signal);
   result.streamUrl = `${getApiBaseUrl()}${result.streamUrl}`;
   result.thumbnailUrl = proxyImageUrl(result.thumbnailUrl) || result.thumbnailUrl;
   return result;

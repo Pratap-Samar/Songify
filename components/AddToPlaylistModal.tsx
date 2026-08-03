@@ -25,9 +25,9 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
   const handleCreate = async () => {
     const trimmed = newPlaylistName.trim();
     if (trimmed && track) {
-      const newId = await create(trimmed);
-      if (newId) {
-        await addTrack(newId, track);
+      const newPlaylist = await create(trimmed);
+      if (newPlaylist) {
+        await addTrack(newPlaylist.id, track);
         setNewPlaylistName("");
         onClose();
       }

@@ -45,3 +45,4 @@ app-example
 # sensitive info and progress
 .env
 progress.md
+fixes.md
