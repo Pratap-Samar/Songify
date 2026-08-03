@@ -4,15 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
 import {
-  addPlaybackStateListener,
-  addTrackChangeListener,
-  addProgressListener,
-  getActiveTrack,
   skipToNext,
   skipToPrevious,
   togglePlayPause,
 } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
+import { usePlaybackState } from "@/hooks/usePlaybackState";
 
 type NowPlayingBarProps = {
   // We keep the prop for backwards compatibility with App.tsx, but override it with real player state
@@ -25,51 +22,14 @@ export default function NowPlayingBar({
   onPress,
 }: NowPlayingBarProps) {
   const router = useRouter();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [activeTrack, setActiveTrack] = useState<Track | null>(propTrack ?? null);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-
-    // 1. Initial sync with the player
-    getActiveTrack().then((t) => {
-      if (active && t) {
-        setActiveTrack(t as unknown as Track);
-      }
-    });
-
-    // 2. Listen to state changes (play/pause)
-    const stateUnsub = addPlaybackStateListener((state) => {
-      if (!active) return;
-      setIsPlaying(state === "Playing");
-    });
-
-    // 3. Listen to track changes
-    const trackUnsub = addTrackChangeListener((t) => {
-      if (!active) return;
-      setActiveTrack(t);
-      setIsPlaying(true);
-    });
-
-    // 4. Listen to progress for the progress bar
-    const progressUnsub = addProgressListener((pos, dur) => {
-      if (!active) return;
-      setProgress(dur > 0 ? pos / dur : 0);
-    });
-
-    return () => {
-      active = false;
-      stateUnsub?.remove?.();
-      trackUnsub?.remove?.();
-      progressUnsub?.remove?.();
-    };
-  }, []);
+  const { track: activeTrack, isPlaying, position, duration } = usePlaybackState();
 
   // Use the activeTrack from the player if available, fallback to the prop
   const track = activeTrack ?? propTrack;
 
   if (!track) return null; // Don't show the bar if there's no track at all
+
+  const progress = duration > 0 ? position / duration : 0;
 
   const handleBarPress = () => {
     if (track) {
@@ -84,11 +44,6 @@ export default function NowPlayingBar({
 
   return (
     <View style={style.container}>
-      {/* Thin progress bar at the top */}
-      <View style={style.progressTrack}>
-        <View style={[style.progressFill, { width: `${progress * 100}%` }]} />
-      </View>
-
       <TouchableOpacity style={style.bar} onPress={handleBarPress} activeOpacity={0.85}>
         <View style={style.left}>
           {track.thumbnailUrl && (
@@ -104,17 +59,22 @@ export default function NowPlayingBar({
           </View>
         </View>
         <View style={style.right}>
-          <TouchableOpacity onPress={(e) => handleAction(e, skipToPrevious)}>
+          <TouchableOpacity onPress={(e) => handleAction(e, skipToPrevious)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="play-skip-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => handleAction(e, togglePlayPause)} style={style.playButton}>
+          <TouchableOpacity onPress={(e) => handleAction(e, togglePlayPause)} style={style.playButton} hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}>
             <Ionicons name={isPlaying ? "pause" : "play"} size={28} color={theme.colors.button} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => handleAction(e, skipToNext)}>
+          <TouchableOpacity onPress={(e) => handleAction(e, skipToNext)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="play-skip-forward" size={24} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
+      
+      {/* Thin progress bar at the bottom */}
+      <View style={style.progressTrack}>
+        <View style={[style.progressFill, { width: `${progress * 100}%` }]} />
+      </View>
     </View>
   );
 }
@@ -138,9 +98,9 @@ const style = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    height: 60,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 64,
   },
   left: {
     flex: 1,
@@ -148,9 +108,9 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   thumbnail: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
+    width: 48,
+    height: 48,
+    borderRadius: 6,
   },
   textContainer: {
     marginLeft: 12,

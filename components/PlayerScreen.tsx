@@ -1,23 +1,19 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { theme } from "@/constants/theme";
 import {
-  addPlaybackStateListener,
-  addProgressListener,
-  addTrackChangeListener,
   seekTo,
   skipToNext,
   skipToPrevious,
   togglePlayPause,
   getRepeatMode,
   setRepeatMode,
-  getActiveTrack,
-  getPlaybackState,
 } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
 import AddToPlaylistModal from "./AddToPlaylistModal";
+import { usePlaybackState } from "@/hooks/usePlaybackState";
 
 function fmt(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return "0:00";
@@ -29,75 +25,29 @@ function fmt(seconds: number): string {
 export default function PlayerScreen({ videoId }: { videoId: string }) {
   const router = useRouter();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const [track, setTrack] = useState<Track | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { track, isPlaying, position, duration, error } = usePlaybackState();
   const [repeat, setRepeat] = useState<'off' | 'track' | 'queue'>('off');
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
 
-  // ── Progress state ──────────────────────────────────────────────
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
+  // ── Download state (mock) ───────────────────────────────────────
+  const [downloadState, setDownloadState] = useState<'none' | 'downloading' | 'downloaded'>('none');
+
+  // Reset download state when track changes
+  useEffect(() => {
+    setDownloadState('none');
+  }, [track?.videoId]);
+
+  // ── Seek visual state ───────────────────────────────────────────
   const [seeking, setSeeking] = useState(false);
   const [seekPct, setSeekPct] = useState(0);
   const barWidthRef = useRef(0);
   const durationRef = useRef(0);
   durationRef.current = duration;
 
-  // Subscribe to playback progress
-  useEffect(() => {
-    const sub = addProgressListener((pos, dur) => {
-      setPosition(pos);
-      setDuration(dur);
-    });
-    return () => { sub.remove?.(); };
-  }, []);
-
   // Sync repeat mode
   useEffect(() => {
     getRepeatMode().then(setRepeat);
   }, []);
-
-  // ── Track synchronization ─────────────────────────────────────────
-  useEffect(() => {
-    let active = true;
-
-    async function syncState() {
-      try {
-        const activeT = await getActiveTrack();
-        if (activeT) {
-          if (!active) return;
-          setTrack(activeT as unknown as Track);
-          const state = await getPlaybackState();
-          setIsPlaying(state === "Playing");
-        }
-      } catch (e) {
-        if (active) {
-          setError(e instanceof Error ? e.message : "Unable to sync player state.");
-        }
-      }
-    }
-
-    syncState();
-
-    const stateUnsub = addPlaybackStateListener((state) => {
-      if (!active) return;
-      setIsPlaying(state === "Playing");
-      if (state === "Stopped" || state === "None") setIsPlaying(false);
-    });
-
-    const trackUnsub = addTrackChangeListener((t) => {
-      if (!active) return;
-      setTrack(t);
-      setIsPlaying(true);
-    });
-
-    return () => {
-      active = false;
-      stateUnsub?.remove?.();
-      trackUnsub?.remove?.();
-    };
-  }, [videoId]);
 
   // ── Seek visual state ───────────────────────────────────────────
   const displayPct = seeking ? seekPct : (duration > 0 ? position / duration : 0);
@@ -161,7 +111,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
           </View>
         ) : (
           <View style={style.playerLayout}>
-            <View style={[style.artworkContainer, { width: artworkSize, height: artworkSize, marginBottom: isCompact ? 24 : 40 }]}>
+            <View style={[style.artworkContainer, { width: artworkSize, height: artworkSize, marginBottom: isCompact ? 48 : 96 }]}>
               {track?.thumbnailUrl && (
                 <Image
                   source={{ uri: track.thumbnailUrl }}
@@ -170,13 +120,36 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
               )}
             </View>
             <View style={style.bottomSection}>
-              <View style={style.textContainer}>
-                <Text numberOfLines={1} style={[style.title, isCompact && { fontSize: 20 }]}>
-                  {track?.title ?? "Loading..."}
-                </Text>
-                <Text numberOfLines={1} style={[style.artist, isCompact && { fontSize: 16 }]}>
-                  {(track?.artists ?? []).join(", ") || ""}
-                </Text>
+              <View style={style.titleRow}>
+                <View style={style.textWrapper}>
+                  <Text numberOfLines={1} style={[style.title, isCompact && { fontSize: 20 }]}>
+                    {track?.title ?? "Loading..."}
+                  </Text>
+                  <Text numberOfLines={1} style={[style.artist, isCompact && { fontSize: 16 }]}>
+                    {(track?.artists ?? []).join(", ") || ""}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={style.downloadBtn}
+                  onPress={() => {
+                    if (downloadState === 'none') {
+                      setDownloadState('downloading');
+                      // Simulate download for now
+                      setTimeout(() => setDownloadState('downloaded'), 1500);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  {downloadState === 'downloading' ? (
+                    <ActivityIndicator size="small" color={theme.colors.text} />
+                  ) : (
+                    <Ionicons 
+                      name={downloadState === 'downloaded' ? 'checkmark-circle' : 'download-outline'} 
+                      size={26} 
+                      color={downloadState === 'downloaded' ? theme.colors.button : theme.colors.text} 
+                    />
+                  )}
+                </TouchableOpacity>
               </View>
 
               {/* ── Seek bar + time labels ──────────────────── */}
@@ -204,35 +177,35 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                 </View>
               </View>
 
-              <View style={[style.controls, isCompact && { marginTop: 16, marginBottom: 16 }]}>
+              <View style={[style.controls, isCompact && { marginTop: 24, marginBottom: 16 }]}>
                 <TouchableOpacity onPress={toggleRepeatMode} style={style.secondaryBtn}>
                   <Ionicons 
                     name={repeat === 'track' ? "repeat-outline" : "repeat"} 
-                    size={24} 
+                    size={26} 
                     color={repeat === 'off' ? theme.colors.subtext : theme.colors.button} 
                   />
                   {repeat === 'track' && <Text style={style.repeatOneBadge}>1</Text>}
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={skipToPrevious}>
-                  <Ionicons name="play-skip-back" size={isCompact ? 32 : 40} color={theme.colors.text} />
+                  <Ionicons name="play-skip-back" size={isCompact ? 36 : 42} color={theme.colors.text} />
                 </TouchableOpacity>
                 
-                <TouchableOpacity onPress={togglePlayPause} style={[style.playBtn, isCompact && { width: 60, height: 60, borderRadius: 30 }]}>
+                <TouchableOpacity onPress={togglePlayPause} style={[style.playBtn, isCompact && { width: 64, height: 64, borderRadius: 32 }]}>
                   <Ionicons
                     name={isPlaying ? "pause" : "play"}
-                    size={isCompact ? 32 : 40}
+                    size={isCompact ? 36 : 42}
                     color={theme.colors.main}
                     style={{ marginLeft: isPlaying ? 0 : 4 }}
                   />
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={skipToNext}>
-                  <Ionicons name="play-skip-forward" size={isCompact ? 32 : 40} color={theme.colors.text} />
+                  <Ionicons name="play-skip-forward" size={isCompact ? 36 : 42} color={theme.colors.text} />
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={() => setShowPlaylistModal(true)} style={style.secondaryBtn}>
-                  <Ionicons name="add-circle-outline" size={26} color={theme.colors.text} />
+                  <Ionicons name="add-circle-outline" size={28} color={theme.colors.text} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -279,7 +252,7 @@ const style = StyleSheet.create({
   playerLayout: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     width: "100%",
   },
   artworkContainer: {
@@ -298,23 +271,40 @@ const style = StyleSheet.create({
     width: "100%",
     paddingBottom: 24,
   },
-  textContainer: {
-    alignSelf: "stretch",
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 8,
+  },
+  textWrapper: {
+    flex: 1,
     alignItems: "flex-start",
+    justifyContent: "center",
+    paddingRight: 16,
+  },
+  downloadBtn: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 44,
+    minHeight: 44,
   },
   title: {
     color: theme.colors.text,
     fontSize: 24,
     fontWeight: "700",
+    marginBottom: 6,
   },
   artist: {
-    color: theme.colors.subtext,
+    color: theme.colors.buttonDisabled,
     fontSize: 18,
-    marginTop: 6,
+    fontWeight: "500",
   },
   seekContainer: {
     alignSelf: "stretch",
-    marginTop: 32,
+    marginTop: 12,
   },
   seekTrack: {
     height: 4,
@@ -322,6 +312,11 @@ const style = StyleSheet.create({
     borderRadius: 2,
     position: "relative",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   seekFill: {
     height: "100%",
@@ -358,8 +353,10 @@ const style = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    alignSelf: "stretch",
+    width: "100%",
     marginTop: 32,
+    marginBottom: 24,
+    paddingHorizontal: 8,
   },
   playBtn: {
     width: 72,
