@@ -1,52 +1,92 @@
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import type { Track } from "@/lib/music";
+import { ActivityIndicator, SectionList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image } from "expo-image";
+import type { Track, AlbumSearchItem } from "@/lib/music";
 import { theme } from "@/constants/theme";
 
 type LibraryProps = {
   songs: Track[];
+  albums?: AlbumSearchItem[];
   isSearching: boolean;
   error: string | null;
   query: string;
   onPressSong: (track: Track) => void;
+  onPressAlbum?: (album: AlbumSearchItem) => void;
   currentTrackId?: string;
 };
 
-export default function Library({ songs, isSearching, error, query, onPressSong, currentTrackId }: LibraryProps) {
-  const showEmptyState = query.length >= 3 && !isSearching && !error && songs.length === 0;
+export default function Library({ songs, albums = [], isSearching, error, query, onPressSong, onPressAlbum, currentTrackId }: LibraryProps) {
+  const showEmptyState = query.length >= 3 && !isSearching && !error && songs.length === 0 && albums.length === 0;
 
-  const renderItem = ({ item }: { item: Track }) => {
-    const isSelected = item.videoId === currentTrackId;
+  const sections = [];
+  if (songs.length > 0) {
+    sections.push({ title: "Songs", data: songs });
+  }
+  if (albums.length > 0) {
+    sections.push({ title: "Albums", data: albums });
+  }
+
+  const renderItem = ({ item, section }: { item: Track | AlbumSearchItem, section: { title: string } }) => {
+    if (section.title === "Albums") {
+      const album = item as AlbumSearchItem;
+      return (
+        <TouchableOpacity 
+          style={style.songContainer} 
+          onPress={() => onPressAlbum?.(album)} 
+          activeOpacity={0.7}
+        >
+          <View style={style.songImgContainer}>
+            {album.thumbnailUrl && <Image source={{ uri: album.thumbnailUrl }} style={style.songImg} cachePolicy="disk" contentFit="cover" transition={150} />}
+          </View>
+          <View style={style.songDataContainer}>
+            <Text numberOfLines={1} style={style.songName}>{album.title}</Text>
+            <Text numberOfLines={1} style={style.songArtist}>
+              {album.artists.join(", ")}{album.year ? ` • ${album.year}` : ""}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    const track = item as Track;
+    const isSelected = track.videoId === currentTrackId;
     return (
       <TouchableOpacity 
         style={[style.songContainer, isSelected && style.songContainerSelected]} 
-        onPress={() => onPressSong(item)} 
+        onPress={() => onPressSong(track)} 
         activeOpacity={0.7}
       >
         <View style={style.songImgContainer}>
-          {item.thumbnailUrl && <Image source={{ uri: item.thumbnailUrl }} style={style.songImg} />}
+          {track.thumbnailUrl && <Image source={{ uri: track.thumbnailUrl }} style={style.songImg} cachePolicy="disk" contentFit="cover" transition={150} />}
         </View>
         <View style={style.songDataContainer}>
-          <Text numberOfLines={1} style={[style.songName, isSelected && style.songNameSelected]}>{item.title}</Text>
-          <Text numberOfLines={1} style={[style.songArtist, isSelected && style.songArtistSelected]}>{item.artists.join(", ")}</Text>
+          <Text numberOfLines={1} style={[style.songName, isSelected && style.songNameSelected]}>{track.title}</Text>
+          <Text numberOfLines={1} style={[style.songArtist, isSelected && style.songArtistSelected]}>{track.artists.join(", ")}</Text>
         </View>
       </TouchableOpacity>
     );
   };
 
+  const renderSectionHeader = ({ section }: { section: { title: string } }) => (
+    <View style={style.sectionHeaderContainer}>
+      <Text style={style.sectionHeaderTitle}>{section.title}</Text>
+    </View>
+  );
+
   return (
-    <FlatList
-      data={songs}
+    <SectionList
+      sections={sections}
       renderItem={renderItem}
-      keyExtractor={(item) => item.videoId}
+      renderSectionHeader={renderSectionHeader}
+      keyExtractor={(item) => ('id' in item ? item.id : item.videoId)}
       style={style.container}
-      contentContainerStyle={songs.length === 0 ? style.emptyContainer : style.listContent}
+      contentContainerStyle={sections.length === 0 ? style.emptyContainer : style.listContent}
       ListEmptyComponent={
         isSearching ? (
           <ActivityIndicator size="large" color={theme.colors.button} />
         ) : error ? (
           <Text style={[style.message, style.error]}>{error}</Text>
         ) : showEmptyState ? (
-          <Text style={style.message}>No songs found for {query}.</Text>
+          <Text style={style.message}>No results found for {query}.</Text>
         ) : null
       }
     />
@@ -123,5 +163,16 @@ const style = StyleSheet.create({
   },
   error: {
     color: theme.colors.notificationError,
+  },
+  sectionHeaderContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 8,
+    backgroundColor: theme.colors.main,
+  },
+  sectionHeaderTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });

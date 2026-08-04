@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { searchTracks } from "@/lib/api";
-import type { Track } from "@/lib/music";
+import type { Track, AlbumSearchItem } from "@/lib/music";
 import Library from "@/components/Library";
 import SearchBar from "@/components/SearchBar";
 import { theme } from "@/constants/theme";
@@ -12,6 +12,7 @@ export default function SearchTab() {
   const router = useRouter();
   const [form, setForm] = useState<string>("");
   const [songs, setSongs] = useState<Track[]>([]);
+  const [albums, setAlbums] = useState<AlbumSearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
@@ -21,6 +22,7 @@ export default function SearchTab() {
     const query = form.trim();
     if (query.length < 3) {
       setSongs([]);
+      setAlbums([]);
       setError(null);
       setIsSearching(false);
       return;
@@ -31,14 +33,38 @@ export default function SearchTab() {
       setIsSearching(true);
       setError(null);
       try {
-        setSongs(await searchTracks(query, controller.signal));
+        const songPromise = searchTracks(query, controller.signal, "songs");
+        const albumPromise = searchTracks(query, controller.signal, "albums");
+
+        // Fire and forget or handle concurrently but without making songs wait for albums.
+        songPromise.then(res => {
+          if (!controller.signal.aborted) {
+            setSongs(res.songs);
+            setIsSearching(false);
+          }
+        }).catch(err => {
+          if (!controller.signal.aborted) {
+            setSongs([]);
+            setError(err instanceof Error ? err.message : "Search failed.");
+            setIsSearching(false);
+          }
+        });
+
+        albumPromise.then(res => {
+          if (!controller.signal.aborted) {
+            setAlbums(res.albums);
+          }
+        }).catch(err => {
+          if (!controller.signal.aborted) {
+            setAlbums([]);
+          }
+        });
+
       } catch (searchError) {
         if (!controller.signal.aborted) {
           setSongs([]);
+          setAlbums([]);
           setError(searchError instanceof Error ? searchError.message : "Search failed.");
-        }
-      } finally {
-        if (!controller.signal.aborted) {
           setIsSearching(false);
         }
       }
@@ -51,9 +77,16 @@ export default function SearchTab() {
   }, [form]);
 
   const handlePressSong = (track: Track) => {
+    const startIndex = songs.findIndex((t) => t.videoId === track.videoId);
     setCurrentTrackId(track.videoId);
-    import("@/lib/playback").then(({ playAndOpenPlayer }) => {
-      playAndOpenPlayer(track.videoId, router);
+    import("@/lib/playback").then(({ playCollection }) => {
+      playCollection({
+        type: "search",
+        id: "search-" + form,
+        title: `Search: ${form}`,
+        tracks: songs,
+        startIndex: startIndex >= 0 ? startIndex : 0,
+      }, router);
     });
   };
 
@@ -74,10 +107,12 @@ export default function SearchTab() {
         />
         <Library
           songs={songs}
+          albums={albums}
           isSearching={isSearching}
           error={error}
           query={form.trim()}
           onPressSong={handlePressSong}
+          onPressAlbum={(album) => router.push(`/album/${album.id}`)}
           currentTrackId={currentTrackId ?? undefined}
         />
       </View>

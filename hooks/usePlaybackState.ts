@@ -5,14 +5,17 @@ import {
   addProgressListener,
   getActiveTrack,
   getPlaybackState,
+  getRepeatMode,
+  setRepeatMode as setNativeRepeatMode,
+  togglePlayPause as nativeTogglePlayPause,
+  skipToNext as nativeSkipToNext,
+  skipToPrevious as nativeSkipToPrevious,
 } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
 
-export function usePlaybackState() {
+export function useActiveTrack() {
   const [track, setTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,6 +50,23 @@ export function usePlaybackState() {
       setIsPlaying(true);
     });
 
+    return () => {
+      active = false;
+      stateUnsub?.remove?.();
+      trackUnsub?.remove?.();
+    };
+  }, []);
+
+  return { track, isPlaying, error };
+}
+
+export function usePlaybackProgress() {
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
     const progressUnsub = addProgressListener((pos, dur) => {
       if (!active) return;
       setPosition(pos);
@@ -55,11 +75,73 @@ export function usePlaybackState() {
 
     return () => {
       active = false;
-      stateUnsub?.remove?.();
-      trackUnsub?.remove?.();
       progressUnsub?.remove?.();
     };
   }, []);
 
-  return { track, isPlaying, position, duration, error };
+  return { position, duration };
+}
+
+export function usePlaybackControls() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [repeatMode, setRepeatModeState] = useState<"off" | "track" | "queue">("off");
+  const [shuffleEnabled, setShuffleEnabled] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function syncInitialState() {
+      const state = await getPlaybackState();
+      if (active) setIsPlaying(state === "Playing");
+      
+      const rMode = await getRepeatMode();
+      if (active) setRepeatModeState(rMode);
+    }
+    syncInitialState();
+
+    const stateUnsub = addPlaybackStateListener((state) => {
+      if (!active) return;
+      setIsPlaying(state === "Playing");
+      if (state === "Stopped" || state === "None") setIsPlaying(false);
+    });
+
+    return () => {
+      active = false;
+      stateUnsub?.remove?.();
+    };
+  }, []);
+
+  const togglePlayPause = async () => {
+    await nativeTogglePlayPause();
+  };
+
+  const skipToNext = async () => {
+    await nativeSkipToNext();
+  };
+
+  const skipToPrevious = async () => {
+    await nativeSkipToPrevious();
+  };
+
+  const toggleRepeatMode = async () => {
+    const nextMode = repeatMode === "off" ? "queue" : repeatMode === "queue" ? "track" : "off";
+    setRepeatModeState(nextMode);
+    await setNativeRepeatMode(nextMode);
+  };
+
+  const toggleShuffle = async () => {
+    // Not fully implemented natively yet, but we'll flip the UI state
+    setShuffleEnabled((prev) => !prev);
+  };
+
+  return {
+    isPlaying,
+    repeatMode,
+    shuffleEnabled,
+    togglePlayPause,
+    skipToNext,
+    skipToPrevious,
+    toggleRepeatMode,
+    toggleShuffle,
+  };
 }

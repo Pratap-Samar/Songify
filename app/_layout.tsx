@@ -2,13 +2,15 @@ import { Slot } from "expo-router";
 import { StyleSheet, View, Platform } from "react-native";
 import TrackPlayer from "@javascriptcommon/react-native-track-player";
 
+import { logger } from "@/lib/logger";
+
 if (Platform.OS !== "web") {
-  console.log("[App Layout] Calling TrackPlayer.registerPlaybackService...");
+  logger.debug("[App Layout] Calling TrackPlayer.registerPlaybackService...");
   TrackPlayer.registerPlaybackService(() => {
-    console.log("[App Layout] Playback service is actually executing!");
+    logger.debug("[App Layout] Playback service is actually executing!");
     return require("../playback-service");
   });
-  console.log("[App Layout] TrackPlayer.registerPlaybackService completed.");
+  logger.debug("[App Layout] TrackPlayer.registerPlaybackService completed.");
 }
 
 import { useEffect, useState } from "react";

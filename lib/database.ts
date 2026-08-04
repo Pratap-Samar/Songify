@@ -1,4 +1,6 @@
+import type { SQLiteDatabase } from "expo-sqlite";
 import type { Track } from "./music";
+import { logger } from "./logger";
 import { notifyHistoryChanged } from "./historyEvents";
 
 export interface Playlist {
@@ -20,11 +22,7 @@ export interface PlaylistTrack {
 }
 
 type SQLiteModule = {
-  openDatabaseSync: (name: string) => {
-    execAsync: (sql: string) => Promise<void>;
-    getAllAsync: <T>(sql: string, params?: unknown[]) => Promise<T[]>;
-    runAsync: (sql: string, params?: unknown[]) => Promise<{ lastInsertRowId: number }>;
-  };
+  openDatabaseSync: (name: string) => SQLiteDatabase;
 };
 
 let db: ReturnType<SQLiteModule["openDatabaseSync"]> | null = null;
@@ -40,44 +38,79 @@ function getDb() {
   return db;
 }
 
-export async function initDb() {
-  const database = getDb();
-  if (!database) return;
-  console.log("[Database] Running initDb()...");
-  await database.execAsync(
-    `CREATE TABLE IF NOT EXISTS playlists (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      artwork TEXT,
-      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS playlist_tracks (
-      playlistId INTEGER NOT NULL,
-      videoId TEXT NOT NULL,
-      title TEXT NOT NULL,
-      artists TEXT NOT NULL,
-      album TEXT,
-      durationMs INTEGER,
-      thumbnailUrl TEXT,
-      position INTEGER NOT NULL,
-      FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE CASCADE,
-      PRIMARY KEY (playlistId, videoId)
-    );
-    CREATE TABLE IF NOT EXISTS recent_plays (
-      videoId TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      artists TEXT NOT NULL,
-      album TEXT,
-      durationMs INTEGER,
-      thumbnailUrl TEXT,
-      lastPlayedAt TEXT NOT NULL DEFAULT (datetime('now'))
-    );`
-  );
-  
+let initDbPromise: Promise<void> | null = null;
 
-  
-  console.log("[Database] initDb() completed successfully.");
+export async function initDb() {
+  if (initDbPromise) return initDbPromise;
+  initDbPromise = (async () => {
+    const database = getDb();
+    if (!database) return;
+    logger.debug("[Database] Running initDb()...");
+
+  const migrations = [
+    {
+      version: 1,
+      up: async (db: SQLiteDatabase) => {
+        await db.execAsync(
+          `CREATE TABLE IF NOT EXISTS playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            artwork TEXT,
+            createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+            updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+          );
+          CREATE TABLE IF NOT EXISTS playlist_tracks (
+            playlistId INTEGER NOT NULL,
+            videoId TEXT NOT NULL,
+            title TEXT NOT NULL,
+            artists TEXT NOT NULL,
+            album TEXT,
+            durationMs INTEGER,
+            thumbnailUrl TEXT,
+            position INTEGER NOT NULL,
+            FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE CASCADE,
+            PRIMARY KEY (playlistId, videoId)
+          );
+          CREATE TABLE IF NOT EXISTS recent_plays (
+            videoId TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            artists TEXT NOT NULL,
+            album TEXT,
+            durationMs INTEGER,
+            thumbnailUrl TEXT,
+            lastPlayedAt TEXT NOT NULL DEFAULT (datetime('now'))
+          );
+          CREATE INDEX IF NOT EXISTS idx_recent_plays_time ON recent_plays(lastPlayedAt DESC);
+          CREATE INDEX IF NOT EXISTS idx_recent_plays_videoId ON recent_plays(videoId);
+          CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlistId ON playlist_tracks(playlistId);`
+        );
+      },
+    },
+  ];
+
+  try {
+    const result = await database.getFirstAsync<{ user_version: number }>(
+      "PRAGMA user_version"
+    );
+    let currentVersion = result?.user_version ?? 0;
+
+    for (const migration of migrations) {
+      if (currentVersion < migration.version) {
+        logger.debug(`[Database] Applying migration ${migration.version}...`);
+        await database.withTransactionAsync(async () => {
+          await migration.up(database);
+          await database.execAsync(`PRAGMA user_version = ${migration.version}`);
+        });
+        currentVersion = migration.version;
+        logger.debug(`[Database] Migration ${migration.version} applied successfully.`);
+      }
+    }
+    logger.debug("[Database] initDb() completed successfully.");
+  } catch (err) {
+    console.error("[Database] Migration failed:", err);
+  }
+  })();
+  return initDbPromise;
 }
 
 export async function getPlaylists(): Promise<Playlist[]> {
@@ -193,19 +226,19 @@ export async function addToHistory(track: Track): Promise<void> {
      ON CONFLICT(videoId) DO UPDATE SET lastPlayedAt = datetime('now');`,
     ...params
   );
-  console.log(`[Database] addToHistory: Completed for "${track.title}". Notifying listeners.`);
+  logger.debug(`[Database] addToHistory: Completed for "${track.title}". Notifying listeners.`);
   notifyHistoryChanged();
 }
 
 export async function getHistory(limit = 20): Promise<Track[]> {
   const database = getDb();
   if (!database) return [];
-  console.log(`[Database] getHistory: Fetching top ${limit} recent_plays...`);
+  logger.debug(`[Database] getHistory: Fetching top ${limit} recent_plays...`);
   const rows = await database.getAllAsync<any>(
     "SELECT videoId, title, artists, album, durationMs, thumbnailUrl FROM recent_plays ORDER BY lastPlayedAt DESC LIMIT ?;",
     [limit]
   );
-  console.log(`[Database] getHistory: Found ${rows.length} rows.`);
+  logger.debug(`[Database] getHistory: Found ${rows.length} rows.`);
   return rows.map((r) => ({
     videoId: r.videoId,
     title: r.title,

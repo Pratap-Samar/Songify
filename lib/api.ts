@@ -1,9 +1,10 @@
-import type { PlaybackTrack, Track } from "./music";
+import type { PlaybackTrack, Track, Album, AlbumSearchItem } from "./music";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
 
-type SearchResponse = {
-  items: Track[];
+export type SearchResponse = {
+  songs: Track[];
+  albums: AlbumSearchItem[];
 };
 
 function getApiBaseUrl() {
@@ -31,12 +32,22 @@ function proxyImageUrl(url: string | null | undefined): string | null {
   return `${getApiBaseUrl()}/proxy/image?url=${encodeURIComponent(url)}`;
 }
 
-export async function searchTracks(query: string, signal?: AbortSignal): Promise<Track[]> {
-  const response = await request<SearchResponse>(`/search?q=${encodeURIComponent(query)}`, signal);
-  return response.items.map((track) => ({
-    ...track,
-    thumbnailUrl: proxyImageUrl(track.thumbnailUrl) || track.thumbnailUrl,
-  }));
+export async function searchTracks(query: string, signal?: AbortSignal, type?: "songs" | "albums"): Promise<SearchResponse> {
+  let url = `/search?q=${encodeURIComponent(query)}`;
+  if (type) {
+    url += `&type=${encodeURIComponent(type)}`;
+  }
+  const response = await request<SearchResponse>(url, signal);
+  return {
+    songs: (response.songs || []).map((track) => ({
+      ...track,
+      thumbnailUrl: proxyImageUrl(track.thumbnailUrl) || track.thumbnailUrl,
+    })),
+    albums: (response.albums || []).map((album) => ({
+      ...album,
+      thumbnailUrl: proxyImageUrl(album.thumbnailUrl) || album.thumbnailUrl,
+    })),
+  };
 }
 
 export async function getPlaybackTrack(videoId: string, signal?: AbortSignal): Promise<PlaybackTrack> {
@@ -44,4 +55,18 @@ export async function getPlaybackTrack(videoId: string, signal?: AbortSignal): P
   result.streamUrl = `${getApiBaseUrl()}${result.streamUrl}`;
   result.thumbnailUrl = proxyImageUrl(result.thumbnailUrl) || result.thumbnailUrl;
   return result;
+}
+
+export async function getAlbum(browseId: string, signal?: AbortSignal): Promise<Album> {
+  const result = await request<Album>(`/albums/${encodeURIComponent(browseId)}`, signal);
+  result.artwork = proxyImageUrl(result.artwork) || result.artwork;
+  result.tracks = result.tracks.map((track) => ({
+    ...track,
+    thumbnailUrl: result.artwork,
+  }));
+  return result;
+}
+
+export function getAudioProxyUrl(videoId: string): string {
+  return `${getApiBaseUrl()}/proxy/audio/${encodeURIComponent(videoId)}.mp4`;
 }

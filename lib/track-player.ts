@@ -1,7 +1,8 @@
 import { Platform } from "react-native";
-import TrackPlayer, { Capability, Event, State, RepeatMode } from "@javascriptcommon/react-native-track-player";
+import TrackPlayer, { Capability, Event, State, RepeatMode, TrackType } from "@javascriptcommon/react-native-track-player";
 import type { Track } from "./music";
 import { addToHistory } from "./database";
+import { logger } from "./logger";
 
 const isWeb = Platform.OS === "web";
 
@@ -88,24 +89,25 @@ async function webPause() { getAudio().pause(); }
 function mapTrack(track: Track & { streamUrl: string }) {
   return {
     id: track.videoId,
-    url: track.streamUrl,
+    url: track.streamUrl.includes('.mp4') ? track.streamUrl : track.streamUrl + '.mp4',
     title: track.title,
     artist: track.artists.join(", "),
     artwork: track.thumbnailUrl ?? "",
     duration: track.durationMs ? track.durationMs / 1000 : 0,
     genre: "Music",
+    type: TrackType.Default,
   };
 }
 
-function unmapTrack(item: any): Track & { streamUrl: string } {
-  if (!item) return item;
+function unmapTrack(item: Record<string, unknown>): Track & { streamUrl: string } {
+  if (!item) return null as unknown as Track & { streamUrl: string };
   return {
-    videoId: item.id,
-    streamUrl: item.url,
-    title: item.title,
-    artists: item.artist ? item.artist.split(", ") : [],
-    thumbnailUrl: item.artwork || null,
-    durationMs: item.duration || null,
+    videoId: item.id as string,
+    streamUrl: item.url as string,
+    title: item.title as string,
+    artists: item.artist ? (item.artist as string).split(", ") : [],
+    thumbnailUrl: (item.artwork as string) || null,
+    durationMs: (item.duration as number) || null,
     album: null,
   };
 }
@@ -116,27 +118,36 @@ let nativePlayerReady = false;
 let setupPromise: Promise<void> | null = null;
 
 export async function setupPlayer() {
-  console.log("[TrackPlayer] setupPlayer called. isWeb:", isWeb, "nativePlayerReady:", nativePlayerReady);
+  console.warn(`[DIAGNOSTICS] [Lifecycle] ${new Date().toISOString()} - setupPlayer() EXECUTED`);
+  logger.debug("[TrackPlayer] setupPlayer called. isWeb:", isWeb, "nativePlayerReady:", nativePlayerReady);
   if (isWeb) return webSetupPlayer();
   if (nativePlayerReady) return;
   try {
-    console.log("[TrackPlayer] Calling TrackPlayer.setupPlayer({})...");
+    logger.debug("[TrackPlayer] Calling TrackPlayer.setupPlayer({})...");
     await TrackPlayer.setupPlayer({});
-    console.log("[TrackPlayer] setupPlayer({}) succeeded. Calling updateOptions...");
+    logger.debug("[TrackPlayer] setupPlayer({}) succeeded. Calling updateOptions...");
     await TrackPlayer.updateOptions({
       progressUpdateEventInterval: 1,
       capabilities: [Capability.Play, Capability.Pause, Capability.Stop, Capability.SeekTo, Capability.Skip, Capability.SkipToNext, Capability.SkipToPrevious],
       compactCapabilities: [Capability.Play, Capability.Pause, Capability.SeekTo, Capability.Skip],
       notificationCapabilities: [Capability.Play, Capability.Pause, Capability.Stop, Capability.SeekTo, Capability.Skip, Capability.SkipToNext, Capability.SkipToPrevious],
     });
-    console.log("[TrackPlayer] updateOptions succeeded. Player is ready.");
+    logger.debug("[TrackPlayer] updateOptions succeeded. Player is ready.");
+
+    TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
+      console.warn(`[PlayOp #${latestPlayId}] Event.PlaybackState | ${new Date().toISOString()} | State Changed: ${event.state}`);
+    });
 
     TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async (event) => {
-      console.log("[TrackPlayer] PlaybackQueueEnded fired. nativeRepeatMode:", nativeRepeatMode);
+      const ts = new Date().toISOString();
+      const state = await TrackPlayer.getPlaybackState();
+      const queue = await TrackPlayer.getQueue();
+      console.warn(`[PlayOp #${latestPlayId}] Event.PlaybackQueueEnded | ${ts} | FIRED! payload: ${JSON.stringify(event)}, state: ${state}, qLen: ${queue?.length ?? 0}`);
+
+      logger.debug("[TrackPlayer] PlaybackQueueEnded fired. nativeRepeatMode:", nativeRepeatMode);
       if (nativeRepeatMode === 'track' || nativeRepeatMode === 'queue') {
-        const queue = await TrackPlayer.getQueue();
         if (queue && queue.length > 0) {
-          console.log("[TrackPlayer] Looping playback via JS fallback. Skipping to 0...");
+          logger.debug("[TrackPlayer] Looping playback via JS fallback. Skipping to 0...");
           await TrackPlayer.skip(0);
           await TrackPlayer.play();
         }
@@ -145,14 +156,15 @@ export async function setupPlayer() {
 
     nativePlayerReady = true;
     setupPromise = null;
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const err = e as Error;
     // "The player has already been initialized" is harmless
-    if (e?.message?.includes("already been initialized")) {
-      console.log("[TrackPlayer] Player was already initialized (harmless).");
+    if (err?.message?.includes("already been initialized")) {
+      logger.debug("[TrackPlayer] Player was already initialized (harmless).");
       nativePlayerReady = true;
       setupPromise = null;
     } else {
-      console.error("[TrackPlayer] setupPlayer explicitly failed with error:", e, "Message:", e?.message);
+      console.error("[TrackPlayer] setupPlayer explicitly failed with error:", err, "Message:", err?.message);
       setupPromise = null;
       throw e;
     }
@@ -160,13 +172,17 @@ export async function setupPlayer() {
 }
 
 /** Ensure setupPlayer runs exactly once and all callers share the same promise */
-function ensureSetup(): Promise<void> {
-  if (nativePlayerReady) return Promise.resolve();
+export async function ensureSetup() {
+  logger.debug(`[TrackPlayer] ensureSetup() called at ${new Date().toISOString()}`);
+  if (nativePlayerReady) {
+    logger.debug("[TrackPlayer] ensureSetup: natively ready.");
+    return;
+  }
   if (!setupPromise) {
-    console.log("[TrackPlayer] ensureSetup: initializing new setupPromise");
+    logger.debug("[TrackPlayer] ensureSetup: initializing new setupPromise");
     setupPromise = setupPlayer();
   } else {
-    console.log("[TrackPlayer] ensureSetup: returning existing setupPromise");
+    logger.debug("[TrackPlayer] ensureSetup: returning existing setupPromise");
   }
   return setupPromise;
 }
@@ -177,83 +193,151 @@ export function getTrackPlayer() { return TrackPlayer; }
 
 export { mapTrack as mapTrackToTrackPlayerItem };
 
-export async function playTrack(track: Track & { streamUrl: string }) {
-  console.log(`[TrackPlayer] playTrack called for "${track.title}"`);
+export function generatePlayId() { return ++latestPlayId; }
+export function getLatestPlayId() { return latestPlayId; }
+
+export async function trace<T>(opId: number, func: string, trackId: string, apiName: string, promise: Promise<T>): Promise<T> {
+  const t0 = Date.now();
+  console.warn(`[PlayOp #${opId}] ${func}() | Track: ${trackId} | ${new Date().toISOString()} | PROMISE START: ${apiName}`);
+  try {
+    const result = await promise;
+    console.warn(`[PlayOp #${opId}] ${func}() | Track: ${trackId} | ${new Date().toISOString()} | PROMISE COMPLETE: ${apiName} | duration: ${Date.now() - t0}ms`);
+    return result;
+  } catch (e: any) {
+    console.warn(`[PlayOp #${opId}] ${func}() | Track: ${trackId} | ${new Date().toISOString()} | PROMISE ERROR: ${apiName} | duration: ${Date.now() - t0}ms | err: ${e?.message}`);
+    throw e;
+  }
+}
+
+async function logQueueState(opId: number, funcName: string, message: string) {
+  if (isWeb) return;
+  const q = await TrackPlayer.getQueue();
+  const index = await TrackPlayer.getActiveTrackIndex();
+  const track = await TrackPlayer.getActiveTrack();
+  const state = await TrackPlayer.getPlaybackState();
+  const qIds = q ? q.map(t => t.id).join(", ") : "empty";
+  console.warn(`[PlayOp #${opId}] ${funcName}() | Track: ${track?.id ?? 'none'} | ${new Date().toISOString()} | ${message} | State: ${state}, QLen: ${q?.length ?? 0}, Idx: ${index}, Queue: [${qIds}]`);
+}
+
+class Mutex {
+  private mutex = Promise.resolve();
+  lock(): Promise<() => void> {
+    let begin: (unlock: () => void) => void = () => {};
+    this.mutex = this.mutex.then(() => new Promise(begin));
+    return new Promise((res) => {
+      begin = res;
+    });
+  }
+}
+const playerMutex = new Mutex();
+
+export async function playTrack(track: Track & { streamUrl: string }, opId?: number) {
+  logger.debug(`[TrackPlayer] playTrack called for "${track.title}"`);
   
   // Directly log to history so it's guaranteed
   const safeTrack = { ...track, title: track.title || "Unknown Title", artists: track.artists || [] } as unknown as Track;
   addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
 
-  const playId = ++latestPlayId;
+  const playId = opId ?? ++latestPlayId;
+  latestPlayId = playId; // Ensure global stays synced if manually passed
+  console.warn(`[PlayOp #${playId}] playTrack() | Track: ${track.videoId} | ${new Date().toISOString()} | Play ID Bound`);
 
-  if (isWeb) {
-    await webSetupPlayer();
+  const unlock = await playerMutex.lock();
+  try {
+    if (isWeb) {
+      await webSetupPlayer();
+      if (latestPlayId !== playId) return;
+      await webReset();
+      webQueue = [track];
+      webQueueIndex = 0;
+      await webAdd([mapTrack(track)]);
+      if (latestPlayId !== playId) return;
+      await webPlay();
+      return;
+    }
+    await ensureSetup();
     if (latestPlayId !== playId) return;
-    await webReset();
-    webQueue = [track];
-    webQueueIndex = 0;
-    await webAdd([mapTrack(track)]);
+    await trace(playId, "playTrack", track.videoId, "TrackPlayer.reset()", TrackPlayer.reset());
+    await logQueueState(playId, "playTrack", "After Reset");
     if (latestPlayId !== playId) return;
-    await webPlay();
-    return;
+    
+    const mapped = mapTrack(track);
+    console.log("=== [TELEMETRY] TrackPlayer.add() Payload ===");
+    console.log(JSON.stringify(mapped, null, 2));
+    await trace(playId, "playTrack", track.videoId, "TrackPlayer.add()", TrackPlayer.add(mapped));
+    await logQueueState(playId, "playTrack", "After Add");
+    if (latestPlayId !== playId) return;
+    
+    // Re-apply repeat mode since reset() clears it
+    let nativeMode = RepeatMode.Off;
+    if (nativeRepeatMode === 'track') nativeMode = RepeatMode.Track;
+    if (nativeRepeatMode === 'queue') nativeMode = RepeatMode.Queue;
+    await TrackPlayer.setRepeatMode(nativeMode);
+    
+    await trace(playId, "playTrack", track.videoId, "TrackPlayer.play()", TrackPlayer.play());
+    await logQueueState(playId, "playTrack", "After Play");
+  } finally {
+    unlock();
   }
-  await ensureSetup();
-  if (latestPlayId !== playId) return;
-  await TrackPlayer.reset();
-  if (latestPlayId !== playId) return;
-  
-  const mapped = mapTrack(track);
-  await TrackPlayer.add(mapped);
-  if (latestPlayId !== playId) return;
-  
-  // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
-  // Our JS fallback in PlaybackQueueEnded will manually loop the track.
-  await TrackPlayer.setRepeatMode(RepeatMode.Off);
-  
-  await TrackPlayer.play();
 }
+  
 
-export async function playOrUpdateQueue(tracks: (Track & { streamUrl: string })[], index = 0) {
+
+export async function playQueue(tracks: (Track & { streamUrl: string })[], index = 0, opId?: number) {
   const current = tracks[index];
   if (current) {
-    console.log(`[TrackPlayer] playOrUpdateQueue called. Active track: "${current.title}"`);
+    logger.debug(`[TrackPlayer] playQueue called. Active track: "${current.title}"`);
     const safeTrack = { ...current, title: current.title || "Unknown Title", artists: current.artists || [] } as unknown as Track;
     addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
   }
 
-  const playId = ++latestPlayId;
+  const playId = opId ?? ++latestPlayId;
+  latestPlayId = playId;
+  const rootVideoId = current?.videoId || "unknown";
+  console.warn(`[PlayOp #${playId}] playQueue() | Track: ${rootVideoId} | ${new Date().toISOString()} | Play ID Bound`);
 
-  if (isWeb) {
-    await webSetupPlayer();
-    if (latestPlayId !== playId) return;
-    await webReset();
-    webQueue = tracks;
-    webQueueIndex = index;
-    if (tracks[index]) {
-      await webAdd([mapTrack(tracks[index])]);
+  const unlock = await playerMutex.lock();
+  try {
+    if (isWeb) {
+      await webSetupPlayer();
       if (latestPlayId !== playId) return;
-      await webPlay();
+      await webReset();
+      webQueue = tracks;
+      webQueueIndex = index;
+      if (tracks[index]) {
+        await webAdd([mapTrack(tracks[index])]);
+        if (latestPlayId !== playId) return;
+        await webPlay();
+      }
+      return;
     }
-    return;
+    await ensureSetup();
+    if (latestPlayId !== playId) return;
+    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.reset()", TrackPlayer.reset());
+    await logQueueState(playId, "playQueue", "After Queue Reset");
+    if (latestPlayId !== playId) return;
+    
+    const mappedTracks = tracks.map(mapTrack);
+    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add()", TrackPlayer.add(mappedTracks));
+    await logQueueState(playId, "playQueue", "After Queue Add");
+    if (latestPlayId !== playId) return;
+    
+    let nativeMode = RepeatMode.Off;
+    if (nativeRepeatMode === 'track') nativeMode = RepeatMode.Track;
+    if (nativeRepeatMode === 'queue') nativeMode = RepeatMode.Queue;
+    await TrackPlayer.setRepeatMode(nativeMode);
+    
+    // TrackPlayer.add() returns an insertion position, not the requested
+    // active-track index. Always skip to the caller's selected queue index.
+    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.skip()", TrackPlayer.skip(index));
+    await logQueueState(playId, "playQueue", "After Queue Skip");
+    
+    if (latestPlayId !== playId) return;
+    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.play()", TrackPlayer.play());
+    await logQueueState(playId, "playQueue", "After Queue Play");
+  } finally {
+    unlock();
   }
-  await ensureSetup();
-  if (latestPlayId !== playId) return;
-  await TrackPlayer.reset();
-  if (latestPlayId !== playId) return;
-  
-  const mappedTracks = tracks.map(mapTrack);
-  const ids = await TrackPlayer.add(mappedTracks);
-  if (latestPlayId !== playId) return;
-  
-  // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
-  // Our JS fallback in PlaybackQueueEnded will manually loop the track.
-  await TrackPlayer.setRepeatMode(RepeatMode.Off);
-  
-  if (typeof ids === "number" && ids >= 0) await TrackPlayer.skip(ids);
-  else if (Array.isArray(ids) && ids.length > index) await TrackPlayer.skip(ids[index]);
-  
-  if (latestPlayId !== playId) return;
-  await TrackPlayer.play();
 }
 
 export async function skipToNext() {
@@ -294,6 +378,19 @@ export async function skipToPrevious() {
 }
 
 export async function togglePlayPause() {
+  if (playPausePromise) return playPausePromise;
+
+  playPausePromise = togglePlayPauseInternal();
+  try {
+    await playPausePromise;
+  } finally {
+    playPausePromise = null;
+  }
+}
+
+let playPausePromise: Promise<void> | null = null;
+
+async function togglePlayPauseInternal() {
   if (isWeb) {
     if (webState === "Playing") { webPause(); }
     else { webPlay(); }
@@ -344,7 +441,7 @@ export function addTrackChangeListener(callback: (track: Track & { streamUrl: st
   ensureSetup().then(() => {
     if (cancelled) return;
     nativeSub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event) => {
-      const track = (event as { track: any }).track;
+      const track = (event as { track: Record<string, unknown> }).track;
       if (track) callback(unmapTrack(track));
     });
   });
@@ -394,10 +491,10 @@ export async function setRepeatMode(mode: 'off' | 'track' | 'queue') {
   }
   await ensureSetup();
   nativeRepeatMode = mode;
-  
-  // ALWAYS use RepeatMode.Off natively to ensure PlaybackQueueEnded fires.
-  // Our JS fallback in PlaybackQueueEnded will manually loop the track.
-  await TrackPlayer.setRepeatMode(RepeatMode.Off);
+  let nativeMode = RepeatMode.Off;
+  if (mode === 'track') nativeMode = RepeatMode.Track;
+  if (mode === 'queue') nativeMode = RepeatMode.Queue;
+  await TrackPlayer.setRepeatMode(nativeMode);
 }
 
 export async function getRepeatMode(): Promise<'off' | 'track' | 'queue'> {
