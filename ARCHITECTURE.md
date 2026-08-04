@@ -17,6 +17,7 @@ d:\Project\Songify
 │   ├── api.ts            # Connector for ytmusicapi/backend
 │   ├── database.ts       # SQLite persistence and migrations
 │   ├── logger.ts         # Centralized development logger
+│   ├── playback-session.ts # Active source, collection, queue, and index
 │   ├── track-player.ts   # React Native Track Player wrapper/controller
 │   └── playback.ts       # Top-level shared playback navigation & formatting
 └── backend/              # Python FastAPI + ytmusicapi service
@@ -27,16 +28,18 @@ d:\Project\Songify
 The playback pipeline is strictly unidirectional. The UI never directly calls `TrackPlayer` methods for enqueueing audio.
 
 **Flow:**
-`UI` (Search, History, Album, etc) → `playback.ts` → `track-player.ts` → `TrackPlayer`
+`UI` (Search, History, Album, etc) → `playback.ts` → `playQueue()` → `TrackPlayer`
 
-- **`UI`**: Owns navigation and user interactions. Components call `playAndOpenPlayer` or `playCollection` which handles bridging the gap between track arrays and the playback manager.
+- **`UI`**: Owns navigation and user interactions. Components call `playAndOpenPlayer` or `playCollection`, both of which create a queue through the shared playback manager.
 - **`TrackPlayer`**: Owns the queue and audio state. (React Native Track Player).
-- **`track-player.ts`**: The strict adapter layer. It provides `playTrack` and `playQueue` and abstracts away whether the environment is Native or Web. It automatically writes successfully played tracks to the History database.
+- **`track-player.ts`**: The strict adapter layer. It provides the universal `playQueue` pipeline and abstracts away whether the environment is Native or Web. It automatically writes successfully played tracks to the History database.
 - **`playback.ts`**: Handles pre-processing tracks (fetching stream proxy URLs via `api.ts`, transforming metadata) before passing them to `track-player.ts`.
-- **Playback scope**: Search results and history use `playTrack()` as solo sessions. Only albums and playlists use `playQueue()`, so ending a solo track cannot advance into unrelated search results.
+- **Playback scope**: Search results and history use a one-track `playQueue()` session. Albums and playlists use the same function with a longer queue.
 - **Queue selection**: `playQueue()` explicitly skips to the requested collection index after adding the queue. The return value of `TrackPlayer.add()` is not used as the active-track index.
 - **Command serialization**: `track-player.ts` coalesces overlapping play/pause commands, while the existing playback mutex and play IDs prevent competing queue/track loads from reaching the native player.
-- **Repeat handling**: Native repeat is kept off so queue-ended events are reliable. JavaScript repeats the active track or restarts the collection from index zero, and the backend keeps resolved stream URLs cached for five minutes.
+- **Repeat handling**: Native playback uses one guarded JavaScript end-of-track controller because this fork can pause at track end instead of transitioning reliably. Web playback retains its HTML audio `onended` handling, and the backend keeps resolved stream URLs cached for five minutes.
+- **Repeat states**: Collections support `off`, `queue` (Loop), and `track` (Loop 1); single-track sessions expose only `off` and `track`.
+- **Playback session**: `playback-session.ts` owns source, collection metadata, queue, and current index. React uses `usePlaybackSession()` separately from the playback state hooks.
 - **Search filters**: Search fetches songs and albums concurrently but renders only the selected `Songs` or `Albums` result set.
 - **Album screen layout**: The album track list and mini-player use normal layout flow so the mini-player cannot cover the final album tracks.
 
@@ -46,15 +49,17 @@ To prevent React performance issues, the global playback state is split into thr
 1. `useActiveTrack()`: Exposes `track` and `error` state. Used by screens to display artwork and titles.
 2. `usePlaybackProgress()`: Exposes `position` and `duration`. Subscribed to *only* by Seek bars / Progress bars to prevent re-rendering massive component trees every second.
 3. `usePlaybackControls()`: Exposes control triggers (`togglePlayPause`, `skipToNext`, `skipToPrevious`) and `isPlaying` boolean.
+4. `usePlaybackSession()`: Exposes the active source, collection metadata, queue, and current queue index without mixing collection data into playback hooks.
 
 ## Database
 
 Persistence is handled exclusively by SQLite using `expo-sqlite`. Migrations run synchronously on application boot (`initDb`).
 
-### Current Schema (v1)
+### Current Schema (v2)
 - **`playlists`**: User-created playlists.
 - **`playlist_tracks`**: Junction table for tracks within a playlist.
 - **`recent_plays`**: The user's listening history.
+- **`playback_session`**: The current playback source, collection metadata, queue, and queue index.
 
 ### Ownership & Relationships
 - **History Ownership**: `track-player.ts` owns inserting to `recent_plays`. The UI only reads from it.

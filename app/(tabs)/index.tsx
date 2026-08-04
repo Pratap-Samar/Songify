@@ -7,7 +7,6 @@ import { useCallback } from "react";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useHistory } from "@/lib/useHistory";
-import { playTrack } from "@/lib/track-player";
 
 export default function HomeTab() {
   const router = useRouter();

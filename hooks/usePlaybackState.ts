@@ -12,6 +12,7 @@ import {
   skipToPrevious as nativeSkipToPrevious,
 } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
+import { getPlaybackSession, subscribePlaybackSession } from "@/lib/playback-session";
 
 export function useActiveTrack() {
   const [track, setTrack] = useState<Track | null>(null);
@@ -82,10 +83,24 @@ export function usePlaybackProgress() {
   return { position, duration };
 }
 
+export function usePlaybackSession() {
+  const [session, setSession] = useState(getPlaybackSession);
+
+  useEffect(() => {
+    const unsubscribe = subscribePlaybackSession(setSession);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  return session;
+}
+
 export function usePlaybackControls() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [repeatMode, setRepeatModeState] = useState<"off" | "track" | "queue">("off");
   const [shuffleEnabled, setShuffleEnabled] = useState(false);
+  const session = usePlaybackSession();
 
   useEffect(() => {
     let active = true;
@@ -111,6 +126,12 @@ export function usePlaybackControls() {
     };
   }, []);
 
+  useEffect(() => {
+    if (session?.source === "track" && repeatMode === "queue") {
+      setRepeatModeState("off");
+    }
+  }, [session?.source, repeatMode]);
+
   const togglePlayPause = async () => {
     await nativeTogglePlayPause();
   };
@@ -124,7 +145,10 @@ export function usePlaybackControls() {
   };
 
   const toggleRepeatMode = async () => {
-    const nextMode = repeatMode === "off" ? "queue" : repeatMode === "queue" ? "track" : "off";
+    const isSolo = getPlaybackSession()?.source === "track";
+    const nextMode = isSolo
+      ? repeatMode === "off" ? "track" : "off"
+      : repeatMode === "off" ? "queue" : repeatMode === "queue" ? "track" : "off";
     setRepeatModeState(nextMode);
     await setNativeRepeatMode(nextMode);
   };

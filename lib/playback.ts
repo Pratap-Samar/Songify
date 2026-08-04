@@ -1,8 +1,9 @@
 import { getPlaybackTrack, getAudioProxyUrl } from "./api";
-import { playTrack, playQueue, generatePlayId, trace } from "./track-player";
+import { playQueue, generatePlayId, trace } from "./track-player";
 import { Alert } from "react-native";
 import type { Router } from "expo-router";
-import type { Track, Collection } from "./music";
+import type { Collection } from "./music";
+import type { PlaybackSource } from "./playback-session";
 
 /**
  * Loads a track's playback stream and immediately plays it.
@@ -17,7 +18,11 @@ export async function loadAndPlayTrack(videoId: string): Promise<void> {
   if (!result || !result.streamUrl) {
     throw new Error("Unable to resolve playback stream.");
   }
-  await playTrack(result, opId);
+  await playQueue([result], 0, {
+    source: "track",
+    collectionId: null,
+    collectionTitle: null,
+  }, opId);
 }
 
 /**
@@ -50,7 +55,12 @@ export async function playCollection(collection: Collection & { startIndex: numb
       thumbnailUrl: track.thumbnailUrl || collection.artwork || null,
       album: collection.type === "album" ? collection.title : track.album,
     }));
-    await playQueue(queueTracks, collection.startIndex);
+    const source: PlaybackSource = collection.type === "search" ? "track" : collection.type;
+    await playQueue(queueTracks, collection.startIndex, {
+      source,
+      collectionId: source === "track" ? null : collection.id,
+      collectionTitle: source === "track" ? null : collection.title,
+    });
     
     const firstVideoId = queueTracks[collection.startIndex]?.videoId;
     if (firstVideoId) {

@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import type { Track } from "./music";
+import type { PlaybackSession } from "./playback-session";
 import { logger } from "./logger";
 import { notifyHistoryChanged } from "./historyEvents";
 
@@ -83,6 +84,22 @@ export async function initDb() {
           CREATE INDEX IF NOT EXISTS idx_recent_plays_time ON recent_plays(lastPlayedAt DESC);
           CREATE INDEX IF NOT EXISTS idx_recent_plays_videoId ON recent_plays(videoId);
           CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlistId ON playlist_tracks(playlistId);`
+        );
+      },
+    },
+    {
+      version: 2,
+      up: async (db: SQLiteDatabase) => {
+        await db.execAsync(
+          `CREATE TABLE IF NOT EXISTS playback_session (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            source TEXT NOT NULL,
+            collectionId TEXT,
+            collectionTitle TEXT,
+            queue TEXT NOT NULL,
+            queueIndex INTEGER NOT NULL,
+            updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+          );`
         );
       },
     },
@@ -247,4 +264,33 @@ export async function getHistory(limit = 20): Promise<Track[]> {
     durationMs: r.durationMs,
     thumbnailUrl: r.thumbnailUrl,
   }));
+}
+
+export async function savePlaybackSession(session: PlaybackSession): Promise<void> {
+  const database = getDb();
+  if (!database) return;
+  await database.runAsync(
+    `INSERT INTO playback_session (id, source, collectionId, collectionTitle, queue, queueIndex, updatedAt)
+     VALUES (1, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(id) DO UPDATE SET
+       source = excluded.source,
+       collectionId = excluded.collectionId,
+       collectionTitle = excluded.collectionTitle,
+       queue = excluded.queue,
+       queueIndex = excluded.queueIndex,
+       updatedAt = datetime('now');`,
+    [
+      session.source,
+      session.collectionId ?? "",
+      session.collectionTitle ?? "",
+      JSON.stringify(session.queue),
+      session.currentIndex,
+    ]
+  );
+}
+
+export async function clearPlaybackSession(): Promise<void> {
+  const database = getDb();
+  if (!database) return;
+  await database.runAsync("DELETE FROM playback_session WHERE id = 1;");
 }

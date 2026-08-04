@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { theme } from "@/constants/theme";
-import { useActiveTrack, usePlaybackProgress, usePlaybackControls } from "@/hooks/usePlaybackState";
+import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
 import { seekTo } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
 import AddToPlaylistModal from "./AddToPlaylistModal";
@@ -20,6 +20,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   const router = useRouter();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const { track, error } = useActiveTrack();
+  const session = usePlaybackSession();
   const { position, duration } = usePlaybackProgress();
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious, repeatMode, toggleRepeatMode } = usePlaybackControls();
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
@@ -81,10 +82,19 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
         <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={style.iconButton}>
           <Ionicons name="chevron-down" size={32} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={style.headerTitle}>Now Playing</Text>
+        <View style={style.headerCenter}>
+          <Text style={style.headerTitle}>Now Playing</Text>
+          {session?.source === "album" && session.collectionId && session.collectionTitle && (
+            <TouchableOpacity onPress={() => router.push(`/album/${session.collectionId}`)}>
+              <Text numberOfLines={1} style={style.headerCollectionTitle}>
+                {session.collectionTitle}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={{ width: 32 }} />
       </View>
-      <View style={[style.content, isCompact && { paddingTop: 16 }]}>
+      <View style={[style.content, isCompact ? { paddingTop: 24 } : { paddingTop: 20 }]}>
         {error ? (
           <View style={style.errorContainer}>
             <Ionicons name="alert-circle" size={48} color={theme.colors.notificationError} />
@@ -233,6 +243,16 @@ const style = StyleSheet.create({
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 1,
+  },
+  headerCenter: {
+    alignItems: "center",
+    flex: 1,
+  },
+  headerCollectionTitle: {
+    color: theme.colors.button,
+    fontSize: 14,
+    marginTop: 6,
+    maxWidth: 220,
   },
   content: {
     flex: 1,
