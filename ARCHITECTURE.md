@@ -39,6 +39,7 @@ The playback pipeline is strictly unidirectional. The UI never directly calls `T
 - **Command serialization**: `track-player.ts` coalesces overlapping play/pause commands, while the existing playback mutex and play IDs prevent competing queue/track loads from reaching the native player.
 - **Repeat handling**: Native playback uses one guarded JavaScript end-of-track controller because this fork can pause at track end instead of transitioning reliably. Web playback retains its HTML audio `onended` handling, and the backend keeps resolved stream URLs cached for five minutes.
 - **Repeat states**: Collections support `off`, `queue` (Loop), and `track` (Loop 1); single-track sessions expose only `off` and `track`.
+- **Stream format**: The backend uses progressive format 18 for compatibility with GoogleVideo restrictions, keeps a 32-entry LRU URL cache with a five-minute TTL, and prefetches only the next queued track.
 - **Playback session**: `playback-session.ts` owns source, collection metadata, queue, and current index. React uses `usePlaybackSession()` separately from the playback state hooks.
 - **Search filters**: Search fetches songs and albums concurrently but renders only the selected `Songs` or `Albums` result set.
 - **Album screen layout**: The album track list and mini-player use normal layout flow so the mini-player cannot cover the final album tracks.

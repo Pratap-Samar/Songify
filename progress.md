@@ -93,3 +93,9 @@
 - Collection playback exposes `Off`, `Loop`, and `Loop 1` behavior.
 - Solo playback exposes only `Off` and `Loop`; loop repeats its one-track queue.
 - End handling checks the active queue index and playback position, so a manual pause during a song is not mistaken for a completed track.
+
+## 20. Stream Quality & Prefetch Optimization
+- The proxy uses combined progressive format 18 because GoogleVideo rejects the audio-only request pattern used by the current ExoPlayer integration.
+- Cache hits/misses and upstream response status remain logged for operational troubleshooting.
+- Resolved stream URLs use a 32-entry LRU cache with the existing five-minute TTL; audio bytes are not stored locally.
+- The next album or playlist track is prefetched into the backend URL cache without downloading the audio file to the device.

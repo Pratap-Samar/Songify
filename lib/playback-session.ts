@@ -1,5 +1,6 @@
 import type { Track } from "./music";
 import { clearPlaybackSession as clearPersistedPlaybackSession, savePlaybackSession } from "./database";
+import { prefetchAudioUrl } from "./api";
 
 export type PlaybackSource = "track" | "album" | "playlist" | "downloads" | "liked";
 
@@ -37,6 +38,7 @@ export function setPlaybackSession(
 ) {
   session = { ...input, queue, currentIndex };
   listeners.forEach((listener) => listener(session));
+  prefetchNext(session);
   savePlaybackSession(session).catch((error) => {
     console.error("[PlaybackSession] Failed to persist session:", error);
   });
@@ -46,9 +48,15 @@ export function updatePlaybackSessionIndex(currentIndex: number) {
   if (!session || session.currentIndex === currentIndex) return;
   session = { ...session, currentIndex };
   listeners.forEach((listener) => listener(session));
+  prefetchNext(session);
   savePlaybackSession(session).catch((error) => {
     console.error("[PlaybackSession] Failed to persist session index:", error);
   });
+}
+
+function prefetchNext(value: PlaybackSession) {
+  const nextTrack = value.queue[value.currentIndex + 1];
+  if (nextTrack) prefetchAudioUrl(nextTrack.videoId);
 }
 
 export function clearPlaybackSession() {

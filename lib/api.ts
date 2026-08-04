@@ -70,3 +70,11 @@ export async function getAlbum(browseId: string, signal?: AbortSignal): Promise<
 export function getAudioProxyUrl(videoId: string): string {
   return `${getApiBaseUrl()}/proxy/audio/${encodeURIComponent(videoId)}.mp4`;
 }
+
+export async function prefetchAudioUrl(videoId: string): Promise<void> {
+  try {
+    await fetch(`${getApiBaseUrl()}/proxy/audio/${encodeURIComponent(videoId)}/prefetch`);
+  } catch {
+    // Prefetch is an optimization; normal playback will resolve the stream.
+  }
+}
