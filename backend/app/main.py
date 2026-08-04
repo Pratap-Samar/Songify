@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import asyncio
 from functools import lru_cache
 from typing import Any
 
@@ -70,8 +71,29 @@ class Track(BaseModel):
     thumbnail_url: str | None = Field(default=None, serialization_alias="thumbnailUrl")
 
 
+class AlbumSearchItem(BaseModel):
+    id: str
+    title: str
+    artists: list[str]
+    year: str | None = None
+    thumbnail_url: str | None = Field(default=None, serialization_alias="thumbnailUrl")
+
+
 class SearchResponse(BaseModel):
-    items: list[Track]
+    songs: list[Track]
+    albums: list[AlbumSearchItem]
+
+
+class AlbumDetails(BaseModel):
+    id: str
+    title: str
+    artists: list[str]
+    artwork: str | None = None
+    year: str | None = None
+    description: str | None = None
+    track_count: int | None = Field(default=None, serialization_alias="trackCount")
+    duration: str | None = None
+    tracks: list[Track]
 
 
 class PlaybackResponse(Track):
@@ -117,13 +139,13 @@ def get_ytmusic() -> YTMusic:
     return YTMusic()
 
 
-def resolve_stream_url(video_id: str) -> tuple[str, dict[str, str]] | None:
-    """Return (url, headers) for the best available stream."""
-    return _resolve_stream_url(video_id, combined=False)
+def resolve_stream_url(video_id: str) -> tuple[str, dict[str, str], dict[str, Any]] | None:
+    """Return (url, headers, format_info) for the best available stream."""
+    return _resolve_stream_url(video_id, combined=True)
 
 
-def resolve_stream_url_combined(video_id: str) -> tuple[str, dict[str, str]] | None:
-    """Return (url, headers) forcing a combined video+audio format.
+def resolve_stream_url_combined(video_id: str) -> tuple[str, dict[str, str], dict[str, Any]] | None:
+    """Return (url, headers, format_info) forcing a combined video+audio format.
 
     Use this when audio-only formats are blocked by YouTube's CDN (403).
     """
@@ -131,8 +153,9 @@ def resolve_stream_url_combined(video_id: str) -> tuple[str, dict[str, str]] | N
 
 
 def _resolve_stream_url(
-    video_id: str, combined: bool = False
-) -> tuple[str, dict[str, str]] | None:
+    video_id: str, combined: bool = True
+) -> tuple[str, dict[str, str], dict[str, Any]] | None:
+    # We default to combined (18) because bestaudio/best reliably fails with 403s on YouTube.
     fmt = "18" if combined else "bestaudio/best"
     try:
         with YoutubeDL({"quiet": True, "no_warnings": True, "format": fmt}) as ydl:
@@ -149,13 +172,13 @@ def _resolve_stream_url(
             if candidates:
                 best = max(candidates, key=lambda f: f.get("abr", 0) or 0)
                 headers = best.get("http_headers") or info.get("http_headers") or {}
-                return best["url"], dict(headers)
+                return best["url"], dict(headers), best
 
             # Last resort: info-level direct URL
             url = info.get("url")
             if isinstance(url, str):
                 headers = info.get("http_headers") or {}
-                return url, dict(headers)
+                return url, dict(headers), info
     except Exception:
         pass
     return None
@@ -218,14 +241,80 @@ def health() -> dict[str, str]:
 
 
 @app.get("/search", response_model=SearchResponse, response_model_by_alias=True)
-def search(q: str = Query(min_length=3, max_length=120)) -> SearchResponse:
+async def search(q: str = Query(min_length=3, max_length=120), type: str | None = None) -> SearchResponse:
     try:
-        results = get_ytmusic().search(q, filter="songs")
+        yt = get_ytmusic()
+        if type == "songs":
+            results_songs = await run_in_threadpool(yt.search, q, filter="songs")
+            results_albums = []
+        elif type == "albums":
+            results_songs = []
+            results_albums = await run_in_threadpool(yt.search, q, filter="albums")
+        else:
+            results_songs, results_albums = await asyncio.gather(
+                run_in_threadpool(yt.search, q, filter="songs"),
+                run_in_threadpool(yt.search, q, filter="albums"),
+            )
     except Exception as error:
         raise HTTPException(status_code=502, detail="Music search is unavailable") from error
 
-    tracks = [track for item in results if (track := normalize_track(item)) is not None]
-    return SearchResponse(items=tracks)
+    songs = [track for item in results_songs if (track := normalize_track(item)) is not None]
+    
+    albums = []
+    for item in results_albums:
+        browse_id = item.get("browseId")
+        title = item.get("title")
+        if not browse_id or not title:
+            continue
+            
+        albums.append(AlbumSearchItem(
+            id=browse_id,
+            title=title,
+            artists=artist_names(item),
+            year=item.get("year"),
+            thumbnail_url=thumbnail_url(item)
+        ))
+
+    return SearchResponse(songs=songs, albums=albums)
+
+
+@app.get("/albums/{browse_id}", response_model=AlbumDetails, response_model_by_alias=True)
+async def get_album(browse_id: str) -> AlbumDetails:
+    try:
+        album = await run_in_threadpool(get_ytmusic().get_album, browse_id)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Album fetch is unavailable") from error
+
+    artwork = thumbnail_url(album)
+    album_title = album.get("title") or "Unknown Album"
+    
+    tracks = []
+    for item in album.get("tracks", []):
+        video_id = item.get("videoId")
+        title = item.get("title")
+        if not video_id or not title:
+            continue
+            
+        tracks.append(Track(
+            video_id=video_id,
+            title=title,
+            artists=artist_names(item) or artist_names(album),
+            album=album_title,
+            duration_ms=duration_ms(item),
+            thumbnail_url=artwork,
+        ))
+
+    return AlbumDetails(
+        id=browse_id,
+        title=album_title,
+        artists=artist_names(album),
+        artwork=artwork,
+        year=album.get("year"),
+        description=album.get("description"),
+        track_count=album.get("trackCount"),
+        duration=album.get("duration"),
+        tracks=tracks
+    )
 
 
 @app.get(
@@ -257,7 +346,7 @@ def playback(video_id: str) -> PlaybackResponse:
 
     return PlaybackResponse(
         **track.model_dump(),
-        stream_url=f"/proxy/audio/{video_id}",
+        stream_url=f"/proxy/audio/{video_id}.mp4",
         mime_type="audio/mp4",
         expires_in_seconds=None,
     )
@@ -275,15 +364,16 @@ _STREAM_CACHE_TTL = 300  # seconds
 
 def _get_cached(
     video_id: str,
-) -> tuple[str, dict[str, str], str | None, int | None] | None:
+) -> tuple[str, dict[str, str], str | None, int | None, float] | None:
     entry = _stream_cache.get(video_id)
     if entry is None:
         return None
     ts, url, headers, ct, cl = entry
-    if time.monotonic() - ts > _STREAM_CACHE_TTL:
+    age = time.monotonic() - ts
+    if age > _STREAM_CACHE_TTL:
         del _stream_cache[video_id]
         return None
-    return url, headers, ct, cl
+    return url, headers, ct, cl, age
 
 
 def _set_cached(
@@ -301,9 +391,58 @@ def _set_cached(
 # the current fetch-then-createObjectURL workaround.  Blob URLs defeat Range-
 # based seeking, so the proxy must be called directly for byte-range support.
 
+_proxy_request_counter = 0
+_active_requests = {}
+
+class VideoLock:
+    def __init__(self):
+        self.lock = asyncio.Lock()
+        self.refcount = 0
+
+_resolution_locks: dict[str, VideoLock] = {}
+
+import logging
+import uuid
+import sys
+
+logger = logging.getLogger("audio_proxy")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
+
+@app.get("/diagnostic/direct-url/{video_id}")
+def diagnostic_direct_url(video_id: str):
+    res = resolve_stream_url_combined(video_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Could not resolve url")
+    url, headers, fmt = res
+    return {
+        "url": url,
+        "format_id": fmt.get("format_id"),
+        "ext": fmt.get("ext"),
+        "protocol": fmt.get("protocol"),
+        "acodec": fmt.get("acodec"),
+        "asr": fmt.get("asr")
+    }
 
 @app.api_route("/proxy/audio/{video_id}", methods=["GET", "HEAD", "OPTIONS"])
 async def proxy_audio(video_id: str, request: Request):
+    global _proxy_request_counter
+    _proxy_request_counter += 1
+    session_id = str(uuid.uuid4())[:8]
+    req_start_ts = time.time()
+    
+    if video_id.endswith(".mp4"):
+        video_id = video_id[:-4]
+
+    _active_requests[video_id] = _active_requests.get(video_id, 0) + 1
+    
+    logger.info(f"[{session_id}] [START] Client request for video_id: {video_id}")
+    logger.info(f"[{session_id}] Incoming Headers: {dict(request.headers)}")
+    logger.info(f"[{session_id}] ACTIVE REQUESTS FOR VIDEO {video_id} = {_active_requests[video_id]}")
+
     # Validate against YouTube's exact 11-char ID format before doing any work
     if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
@@ -319,20 +458,64 @@ async def proxy_audio(video_id: str, request: Request):
 
     # ── HEAD / OPTIONS – no body ────────────────────────────────────
     if request.method in ("HEAD", "OPTIONS"):
+        _active_requests[video_id] -= 1
         return Response(headers={**cors_headers, "Content-Length": "0"})
 
     # ── Resolve the upstream stream URL (cached for 5 min) ──────────
+    logger.info(f"[{session_id}] Cache check initiated.")
     cached = _get_cached(video_id)
     if cached is not None:
-        stream_url, upstream_headers, upstream_ct, upstream_cl = cached
+        stream_url, upstream_headers, upstream_ct, upstream_cl, cache_age = cached
+        logger.info(f"[{session_id}] Cache HIT, age: {cache_age:.2f}s, resolution required: False")
     else:
-        result = await run_in_threadpool(resolve_stream_url, video_id)
-        if result is None:
-            raise HTTPException(status_code=404, detail="No audio stream available")
-        stream_url, upstream_headers = result
-        upstream_ct = None
-        upstream_cl = None
-        _set_cached(video_id, stream_url, upstream_headers, upstream_ct, upstream_cl)
+        logger.info(f"[{session_id}] Cache MISS, resolution required: True")
+        if video_id not in _resolution_locks:
+            _resolution_locks[video_id] = VideoLock()
+        vlock = _resolution_locks[video_id]
+        vlock.refcount += 1
+        
+        logger.info(f"[{session_id}] Lock wait time started.")
+        try:
+            async with vlock.lock:
+                logger.info(f"[{session_id}] Lock acquired.")
+                
+                # Double-check cache inside lock
+                cached = _get_cached(video_id)
+                if cached is not None:
+                    stream_url, upstream_headers, upstream_ct, upstream_cl, cache_age = cached
+                    logger.info(f"[{session_id}] Cache HIT AFTER WAIT")
+                else:
+                    ytdlp_start = time.time()
+                    result = await run_in_threadpool(resolve_stream_url, video_id)
+                    ytdlp_finish = time.time()
+                    logger.info(f"[{session_id}] yt-dlp duration: {ytdlp_finish - ytdlp_start:.4f}s")
+                    if result is None:
+                        _active_requests[video_id] -= 1
+                        raise HTTPException(status_code=404, detail="No audio stream available")
+                    stream_url, upstream_headers, fmt = result
+                    
+                    logger.info(f"[{session_id}] Selected Format Data: " + str({
+                        "format_id": fmt.get("format_id"),
+                        "ext": fmt.get("ext"),
+                        "protocol": fmt.get("protocol"),
+                        "acodec": fmt.get("acodec"),
+                        "vcodec": fmt.get("vcodec"),
+                        "asr": fmt.get("asr"),
+                        "abr": fmt.get("abr")
+                    }))
+                    upstream_ct = None
+                    upstream_cl = None
+                    _set_cached(video_id, stream_url, upstream_headers, upstream_ct, upstream_cl)
+        finally:
+            vlock.refcount -= 1
+            if vlock.refcount == 0:
+                _resolution_locks.pop(video_id, None)
+
+    upstream_count = 0
+    def log_upstream_request(url):
+        nonlocal upstream_count
+        upstream_count += 1
+        logger.info(f"[{session_id}] Upstream GET #{upstream_count} fired to URL: {url[:50]}...")
 
     # ── Merge client Range header with upstream headers ──────────────
     range_header = request.headers.get("range")
@@ -357,12 +540,18 @@ async def proxy_audio(video_id: str, request: Request):
             }
             client = httpx.AsyncClient(**client_kwargs)
             req = client.build_request("GET", stream_url, headers=req_headers)
+            log_upstream_request(stream_url)
             upstream = await client.send(req, stream=True)
+            logger.info(f"[{session_id}] Upstream status code: {upstream.status_code}")
+            logger.info(f"[{session_id}] Upstream response headers: {dict(upstream.headers)}")
         except httpx.TimeoutException:
+            _active_requests[video_id] -= 1
             raise HTTPException(status_code=504, detail="Upstream audio source timed out")
         except httpx.HTTPError:
+            _active_requests[video_id] -= 1
             raise HTTPException(status_code=502, detail="Failed to fetch audio from upstream")
         except Exception as exc:
+            _active_requests[video_id] -= 1
             raise HTTPException(status_code=500, detail=f"Audio proxy error: {type(exc).__name__}") from exc
 
         check_ct = upstream.headers.get("content-type") or ""
@@ -378,13 +567,14 @@ async def proxy_audio(video_id: str, request: Request):
             result = await run_in_threadpool(resolve_stream_url_combined, video_id)
             if result is None:
                 raise HTTPException(status_code=502, detail="Upstream rejected request and no fallback format available")
-            stream_url, upstream_headers = result
+            stream_url, upstream_headers, _ = result
             req_headers = dict(upstream_headers)
             if range_header:
                 req_headers["Range"] = range_header
             continue
 
         if not is_playable:
+            _active_requests[video_id] -= 1
             raise HTTPException(
                 status_code=502,
                 detail=f"Upstream returned {upstream.status_code} {upstream_ct} — not playable audio",
@@ -394,49 +584,52 @@ async def proxy_audio(video_id: str, request: Request):
 
     # ── Capture upstream metadata ───────────────────────────────────
     upstream_ct = upstream.headers.get("content-type") or upstream_ct
-    cl_str = upstream.headers.get("content-length")
-    upstream_cl = int(cl_str) if cl_str and cl_str.isdigit() else upstream_cl
+    
+    if upstream.status_code == 200:
+        cl_str = upstream.headers.get("content-length")
+        upstream_cl = int(cl_str) if cl_str and cl_str.isdigit() else upstream_cl
+        
     _set_cached(video_id, stream_url, upstream_headers, upstream_ct, upstream_cl)
 
     # Build Content-Range for 206 responses
-    content_range: str | None = None
-    status_code = 200
-    if range_header and upstream_cl is not None:
-        status_code = 206
-        upstream_cr = upstream.headers.get("content-range")
-        if upstream_cr:
-            content_range = upstream_cr
-        else:
-            match = re.match(r"bytes=(\d*)-(\d*)", range_header)
-            if match:
-                start = match.group(1) or "0"
-                end = match.group(2) or str(upstream_cl - 1)
-                content_range = f"bytes {start}-{end}/{upstream_cl}"
+    status_code = upstream.status_code
+    content_range = None
+    if status_code == 206:
+        content_range = upstream.headers.get("content-range")
 
     # ── Response headers ────────────────────────────────────────────
     resp_headers: dict[str, str] = {**cors_headers, "Accept-Ranges": "bytes"}
     if upstream_ct:
         resp_headers["Content-Type"] = upstream_ct
-    if upstream_cl is not None:
-        resp_headers["Content-Length"] = str(upstream_cl)
-    if content_range:
-        resp_headers["Content-Range"] = content_range
+
+    if status_code == 206:
+        chunk_cl = upstream.headers.get("content-length")
+        if chunk_cl:
+            resp_headers["Content-Length"] = chunk_cl
+        if content_range:
+            resp_headers["Content-Range"] = content_range
+    else:
+        if upstream_cl is not None:
+            resp_headers["Content-Length"] = str(upstream_cl)
 
     # ── Stream the upstream body ────────────────────────────────────
-    async def stream():
+    async def stream_generator():
         try:
             async for chunk in upstream.aiter_bytes():
                 yield chunk
         except (httpx.ReadError, httpx.RemoteProtocolError):
-            # Connection dropped mid-stream — client can retry via Range.
-            # Yield nothing more and let the response end cleanly.
             return
         finally:
+            resp_completed_ts = time.time()
+            total_dur = resp_completed_ts - req_start_ts
+            logger.info(f"[{session_id}] [END] Request completed. Total time: {total_dur:.4f}s")
             await upstream.aclose()
-            await client.aclose()
+            if client:
+                await client.aclose()
+            _active_requests[video_id] -= 1
 
     return StreamingResponse(
-        stream(),
+        stream_generator(),
         status_code=status_code,
         headers=resp_headers,
     )

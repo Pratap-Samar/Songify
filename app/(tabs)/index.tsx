@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -60,7 +61,7 @@ export default function HomeTab() {
                 >
                   <View style={style.cardThumbnail}>
                     {track.thumbnailUrl ? (
-                      <Image source={{ uri: track.thumbnailUrl }} style={style.cardImage} />
+                      <Image source={{ uri: track.thumbnailUrl }} style={style.cardImage} cachePolicy="disk" contentFit="cover" transition={150} />
                     ) : (
                       <Ionicons name="musical-notes" size={24} color={theme.colors.subtext} />
                     )}

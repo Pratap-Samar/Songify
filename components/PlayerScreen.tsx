@@ -1,19 +1,13 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { theme } from "@/constants/theme";
-import {
-  seekTo,
-  skipToNext,
-  skipToPrevious,
-  togglePlayPause,
-  getRepeatMode,
-  setRepeatMode,
-} from "@/lib/track-player";
+import { useActiveTrack, usePlaybackProgress, usePlaybackControls } from "@/hooks/usePlaybackState";
+import { seekTo } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
 import AddToPlaylistModal from "./AddToPlaylistModal";
-import { usePlaybackState } from "@/hooks/usePlaybackState";
 
 function fmt(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return "0:00";
@@ -25,8 +19,9 @@ function fmt(seconds: number): string {
 export default function PlayerScreen({ videoId }: { videoId: string }) {
   const router = useRouter();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const { track, isPlaying, position, duration, error } = usePlaybackState();
-  const [repeat, setRepeat] = useState<'off' | 'track' | 'queue'>('off');
+  const { track, error } = useActiveTrack();
+  const { position, duration } = usePlaybackProgress();
+  const { isPlaying, togglePlayPause, skipToNext, skipToPrevious, repeatMode, toggleRepeatMode } = usePlaybackControls();
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
 
   // ── Download state (mock) ───────────────────────────────────────
@@ -44,10 +39,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   const durationRef = useRef(0);
   durationRef.current = duration;
 
-  // Sync repeat mode
-  useEffect(() => {
-    getRepeatMode().then(setRepeat);
-  }, []);
+  // Sync repeat mode (now handled by hook)
 
   // ── Seek visual state ───────────────────────────────────────────
   const displayPct = seeking ? seekPct : (duration > 0 ? position / duration : 0);
@@ -73,11 +65,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
     if (isFinite(target)) seekTo(target);
   };
 
-  const toggleRepeatMode = async () => {
-    const nextMode = repeat === 'off' ? 'queue' : repeat === 'queue' ? 'track' : 'off';
-    await setRepeatMode(nextMode);
-    setRepeat(nextMode);
-  };
+
 
   // ── Layout Calculations ─────────────────────────────────────────
   // Artwork should be roughly 70-80% of width, max 320.
@@ -116,6 +104,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                 <Image
                   source={{ uri: track.thumbnailUrl }}
                   style={style.artwork}
+                  cachePolicy="disk" contentFit="cover" transition={150}
                 />
               )}
             </View>
@@ -180,11 +169,11 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
               <View style={[style.controls, isCompact && { marginTop: 24, marginBottom: 16 }]}>
                 <TouchableOpacity onPress={toggleRepeatMode} style={style.secondaryBtn}>
                   <Ionicons 
-                    name={repeat === 'track' ? "repeat-outline" : "repeat"} 
+                    name={repeatMode === 'track' ? "repeat-outline" : "repeat"} 
                     size={26} 
-                    color={repeat === 'off' ? theme.colors.subtext : theme.colors.button} 
+                    color={repeatMode === 'off' ? theme.colors.subtext : theme.colors.button} 
                   />
-                  {repeat === 'track' && <Text style={style.repeatOneBadge}>1</Text>}
+                  {repeatMode === 'track' && <Text style={style.repeatOneBadge}>1</Text>}
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={skipToPrevious}>

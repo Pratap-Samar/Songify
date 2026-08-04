@@ -1,35 +1,36 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View, GestureResponderEvent } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, GestureResponderEvent } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
-import {
-  skipToNext,
-  skipToPrevious,
-  togglePlayPause,
-} from "@/lib/track-player";
 import type { Track } from "@/lib/music";
-import { usePlaybackState } from "@/hooks/usePlaybackState";
+import { useActiveTrack, usePlaybackProgress, usePlaybackControls } from "@/hooks/usePlaybackState";
+
+function ProgressBar() {
+  const { position, duration } = usePlaybackProgress();
+  const progress = duration > 0 ? position / duration : 0;
+
+  return (
+    <View style={style.progressTrack}>
+      <View style={[style.progressFill, { width: `${progress * 100}%` }]} />
+    </View>
+  );
+}
 
 type NowPlayingBarProps = {
-  // We keep the prop for backwards compatibility with App.tsx, but override it with real player state
-  currentTrack?: Track | null;
   onPress?: () => void;
 };
 
 export default function NowPlayingBar({
-  currentTrack: propTrack,
   onPress,
 }: NowPlayingBarProps) {
   const router = useRouter();
-  const { track: activeTrack, isPlaying, position, duration } = usePlaybackState();
+  const { track: activeTrack } = useActiveTrack();
+  const { isPlaying, togglePlayPause, skipToNext, skipToPrevious } = usePlaybackControls();
 
-  // Use the activeTrack from the player if available, fallback to the prop
-  const track = activeTrack ?? propTrack;
+  const track = activeTrack;
 
   if (!track) return null; // Don't show the bar if there's no track at all
-
-  const progress = duration > 0 ? position / duration : 0;
 
   const handleBarPress = () => {
     if (track) {
@@ -47,7 +48,7 @@ export default function NowPlayingBar({
       <TouchableOpacity style={style.bar} onPress={handleBarPress} activeOpacity={0.85}>
         <View style={style.left}>
           {track.thumbnailUrl && (
-            <Image source={{ uri: track.thumbnailUrl }} style={style.thumbnail} />
+            <Image source={{ uri: track.thumbnailUrl }} style={style.thumbnail} cachePolicy="disk" contentFit="cover" transition={150} />
           )}
           <View style={style.textContainer}>
             <Text numberOfLines={1} style={style.title}>
@@ -72,9 +73,7 @@ export default function NowPlayingBar({
       </TouchableOpacity>
       
       {/* Thin progress bar at the bottom */}
-      <View style={style.progressTrack}>
-        <View style={[style.progressFill, { width: `${progress * 100}%` }]} />
-      </View>
+      <ProgressBar />
     </View>
   );
 }

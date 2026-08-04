@@ -66,3 +66,8 @@
 ## 14. Unified Playback Architecture
 **The Issue:** UI components like `Search`, `App` (Library), and `PlayerScreen` all contained duplicate logic to fetch stream metadata, manage `AbortController`s, and control `TrackPlayer` directly. This caused UI components to act as playback controllers, leading to unhandled navigation errors (`GO_BACK`) and broken playback in Continue Listening.
 **The Fix:** Centralized all playback initialization into a single `lib/playback.ts` service with `playAndOpenPlayer` and `loadAndPlayTrack`. UI components (Search, Continue Listening, Library) now passively trigger this unified pipeline. `PlayerScreen` was refactored into a completely passive UI observer that solely relies on `getActiveTrack()`, safely rendering whatever TrackPlayer is currently playing and safely validating `router.canGoBack()` for backwards navigation.
+
+## 15. Search Queue Selection & Rapid Tap Fix
+- Search and album collections now use the caller-provided queue index directly when starting playback. The result of `TrackPlayer.add()` is no longer mistaken for the selected track index.
+- Play/pause requests are coalesced while a previous command is pending, preventing repeated taps during buffering from issuing overlapping native commands.
+- Repeated player setup checks remain shared through one setup promise and are logged at debug level during normal operation.

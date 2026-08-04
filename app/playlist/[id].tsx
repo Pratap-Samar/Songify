@@ -37,7 +37,7 @@ export default function PlaylistDetailScreen() {
     }
     try {
       const results = await searchTracks(query.trim());
-      setSearchResults(results);
+      setSearchResults(results.songs);
     } catch {
       setSearchResults([]);
     }
