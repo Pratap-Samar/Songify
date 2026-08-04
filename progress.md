@@ -71,3 +71,13 @@
 - Search and album collections now use the caller-provided queue index directly when starting playback. The result of `TrackPlayer.add()` is no longer mistaken for the selected track index.
 - Play/pause requests are coalesced while a previous command is pending, preventing repeated taps during buffering from issuing overlapping native commands.
 - Repeated player setup checks remain shared through one setup promise and are logged at debug level during normal operation.
+
+## 16. Search Result Filters & Safe Navigation
+- Added separate `Songs` and `Albums` filters to the Search screen, defaulting to Songs and rendering only the selected result type.
+- Song and album searches maintain independent loading states so switching filters does not show a false empty state while the selected request is pending.
+- Back buttons on Search, Album, Playlist, and About screens now fall back to the home route when no navigation history exists, preventing unhandled `GO_BACK` actions.
+
+## 17. Album Playback Layout & Repeat Handling
+- Album playback keeps the full album queue, allowing native playback to advance through tracks without another play press.
+- Queue repeat restarts the album from its first track, while repeat-one repeats only the active track. Solo tracks remain separate from album and playlist queues.
+- The album screen mini-player now occupies normal layout space below the track list instead of overlaying the final rows and controls.

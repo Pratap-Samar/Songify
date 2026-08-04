@@ -29,6 +29,10 @@ export default function AlbumScreen() {
   
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const { track: activeTrack, isPlaying } = useActiveTrack();
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -63,7 +67,7 @@ export default function AlbumScreen() {
     return (
       <View style={style.center}>
         <Text style={style.errorText}>{error || "Album not found"}</Text>
-        <TouchableOpacity style={style.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={style.backBtn} onPress={goBack}>
           <Text style={style.backBtnText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -94,7 +98,7 @@ export default function AlbumScreen() {
 
   const renderHeader = () => (
     <View style={style.headerContainer}>
-      <TouchableOpacity style={style.headerBack} onPress={() => router.back()}>
+      <TouchableOpacity style={style.headerBack} onPress={goBack}>
         <Ionicons name="chevron-back" size={28} color={theme.colors.text} />
       </TouchableOpacity>
       
@@ -179,10 +183,11 @@ export default function AlbumScreen() {
         keyExtractor={(item, index) => `${item.videoId}-${index}`}
         ListHeaderComponent={renderHeader}
         renderItem={renderTrack}
+        style={style.trackList}
         contentContainerStyle={[style.listContent, { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" }]}
         showsVerticalScrollIndicator={false}
       />
-      <View style={{ width: "100%", maxWidth: contentMaxWidth, alignSelf: "center", position: "absolute", bottom: 0 }}>
+      <View style={[style.miniPlayerContainer, { maxWidth: contentMaxWidth }]}>
         <NowPlayingBar />
       </View>
     </SafeAreaView>
@@ -216,7 +221,14 @@ const style = StyleSheet.create({
     fontWeight: "bold",
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 16,
+  },
+  trackList: {
+    flex: 1,
+  },
+  miniPlayerContainer: {
+    width: "100%",
+    alignSelf: "center",
   },
   headerContainer: {
     alignItems: "center",
