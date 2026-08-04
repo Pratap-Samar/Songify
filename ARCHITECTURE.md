@@ -33,8 +33,12 @@ The playback pipeline is strictly unidirectional. The UI never directly calls `T
 - **`TrackPlayer`**: Owns the queue and audio state. (React Native Track Player).
 - **`track-player.ts`**: The strict adapter layer. It provides `playTrack` and `playQueue` and abstracts away whether the environment is Native or Web. It automatically writes successfully played tracks to the History database.
 - **`playback.ts`**: Handles pre-processing tracks (fetching stream proxy URLs via `api.ts`, transforming metadata) before passing them to `track-player.ts`.
+- **Playback scope**: Search results and history use `playTrack()` as solo sessions. Only albums and playlists use `playQueue()`, so ending a solo track cannot advance into unrelated search results.
 - **Queue selection**: `playQueue()` explicitly skips to the requested collection index after adding the queue. The return value of `TrackPlayer.add()` is not used as the active-track index.
 - **Command serialization**: `track-player.ts` coalesces overlapping play/pause commands, while the existing playback mutex and play IDs prevent competing queue/track loads from reaching the native player.
+- **Repeat handling**: Native repeat is kept off so queue-ended events are reliable. JavaScript repeats the active track or restarts the collection from index zero, and the backend keeps resolved stream URLs cached for five minutes.
+- **Search filters**: Search fetches songs and albums concurrently but renders only the selected `Songs` or `Albums` result set.
+- **Album screen layout**: The album track list and mini-player use normal layout flow so the mini-player cannot cover the final album tracks.
 
 ### State Management Boundaries
 

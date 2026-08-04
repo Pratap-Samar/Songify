@@ -18,6 +18,11 @@ export default function PlaylistDetailScreen() {
   const [playlistName, setPlaylistName] = useState("");
   const [showSearch, setShowSearch] = useState(false);
 
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  };
+
   const loadTracks = useCallback(async () => {
     const tracks = await getTracks(playlistId);
     setPlaylistTracks(tracks);
@@ -77,7 +82,7 @@ export default function PlaylistDetailScreen() {
   return (
     <View style={style.container}>
       <View style={style.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={goBack}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <TextInput

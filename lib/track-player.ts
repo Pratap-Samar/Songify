@@ -147,8 +147,10 @@ export async function setupPlayer() {
       logger.debug("[TrackPlayer] PlaybackQueueEnded fired. nativeRepeatMode:", nativeRepeatMode);
       if (nativeRepeatMode === 'track' || nativeRepeatMode === 'queue') {
         if (queue && queue.length > 0) {
-          logger.debug("[TrackPlayer] Looping playback via JS fallback. Skipping to 0...");
-          await TrackPlayer.skip(0);
+          const activeIndex = await TrackPlayer.getActiveTrackIndex();
+          const repeatIndex = nativeRepeatMode === 'track' ? (activeIndex ?? 0) : 0;
+          logger.debug(`[TrackPlayer] Looping playback via JS fallback. Skipping to ${repeatIndex}...`);
+          await TrackPlayer.skip(repeatIndex);
           await TrackPlayer.play();
         }
       }
@@ -268,11 +270,8 @@ export async function playTrack(track: Track & { streamUrl: string }, opId?: num
     await logQueueState(playId, "playTrack", "After Add");
     if (latestPlayId !== playId) return;
     
-    // Re-apply repeat mode since reset() clears it
-    let nativeMode = RepeatMode.Off;
-    if (nativeRepeatMode === 'track') nativeMode = RepeatMode.Track;
-    if (nativeRepeatMode === 'queue') nativeMode = RepeatMode.Queue;
-    await TrackPlayer.setRepeatMode(nativeMode);
+    // Keep native repeat disabled so PlaybackQueueEnded is emitted reliably.
+    await TrackPlayer.setRepeatMode(RepeatMode.Off);
     
     await trace(playId, "playTrack", track.videoId, "TrackPlayer.play()", TrackPlayer.play());
     await logQueueState(playId, "playTrack", "After Play");
@@ -322,10 +321,8 @@ export async function playQueue(tracks: (Track & { streamUrl: string })[], index
     await logQueueState(playId, "playQueue", "After Queue Add");
     if (latestPlayId !== playId) return;
     
-    let nativeMode = RepeatMode.Off;
-    if (nativeRepeatMode === 'track') nativeMode = RepeatMode.Track;
-    if (nativeRepeatMode === 'queue') nativeMode = RepeatMode.Queue;
-    await TrackPlayer.setRepeatMode(nativeMode);
+    // JS handles repeat so native playback always emits PlaybackQueueEnded.
+    await TrackPlayer.setRepeatMode(RepeatMode.Off);
     
     // TrackPlayer.add() returns an insertion position, not the requested
     // active-track index. Always skip to the caller's selected queue index.
@@ -491,10 +488,9 @@ export async function setRepeatMode(mode: 'off' | 'track' | 'queue') {
   }
   await ensureSetup();
   nativeRepeatMode = mode;
-  let nativeMode = RepeatMode.Off;
-  if (mode === 'track') nativeMode = RepeatMode.Track;
-  if (mode === 'queue') nativeMode = RepeatMode.Queue;
-  await TrackPlayer.setRepeatMode(nativeMode);
+  // The fork's native repeat behavior can suppress PlaybackQueueEnded and
+  // has inconsistent queue/track semantics. Repeat is handled in JS instead.
+  await TrackPlayer.setRepeatMode(RepeatMode.Off);
 }
 
 export async function getRepeatMode(): Promise<'off' | 'track' | 'queue'> {

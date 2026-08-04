@@ -8,11 +8,15 @@ import { useResponsive } from "@/lib/useResponsive";
 export default function AboutScreen() {
   const router = useRouter();
   const { contentMaxWidth, spacing, titleSize, baseSize } = useResponsive();
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  };
 
   return (
     <View style={style.container}>
       <View style={[style.headerRow, { paddingHorizontal: spacing, paddingTop: 48, paddingBottom: spacing }]}>
-        <TouchableOpacity onPress={() => router.back()} style={style.backBtn}>
+        <TouchableOpacity onPress={goBack} style={style.backBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[style.headerTitle, { fontSize: titleSize }]}>About</Text>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { searchTracks } from "@/lib/api";
 import type { Track, AlbumSearchItem } from "@/lib/music";
@@ -10,13 +10,15 @@ import { useResponsive } from "@/lib/useResponsive";
 
 export default function SearchTab() {
   const router = useRouter();
+  const [activeFilter, setActiveFilter] = useState<"songs" | "albums">("songs");
   const [form, setForm] = useState<string>("");
   const [songs, setSongs] = useState<Track[]>([]);
   const [albums, setAlbums] = useState<AlbumSearchItem[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [songsLoading, setSongsLoading] = useState(false);
+  const [albumsLoading, setAlbumsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
-  const { contentMaxWidth, spacing } = useResponsive();
+  const { contentMaxWidth } = useResponsive();
 
   useEffect(() => {
     const query = form.trim();
@@ -24,13 +26,15 @@ export default function SearchTab() {
       setSongs([]);
       setAlbums([]);
       setError(null);
-      setIsSearching(false);
+      setSongsLoading(false);
+      setAlbumsLoading(false);
       return;
     }
 
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
-      setIsSearching(true);
+      setSongsLoading(true);
+      setAlbumsLoading(true);
       setError(null);
       try {
         const songPromise = searchTracks(query, controller.signal, "songs");
@@ -40,23 +44,25 @@ export default function SearchTab() {
         songPromise.then(res => {
           if (!controller.signal.aborted) {
             setSongs(res.songs);
-            setIsSearching(false);
+            setSongsLoading(false);
           }
         }).catch(err => {
           if (!controller.signal.aborted) {
             setSongs([]);
             setError(err instanceof Error ? err.message : "Search failed.");
-            setIsSearching(false);
+            setSongsLoading(false);
           }
         });
 
         albumPromise.then(res => {
           if (!controller.signal.aborted) {
             setAlbums(res.albums);
+            setAlbumsLoading(false);
           }
         }).catch(err => {
           if (!controller.signal.aborted) {
             setAlbums([]);
+            setAlbumsLoading(false);
           }
         });
 
@@ -65,7 +71,8 @@ export default function SearchTab() {
           setSongs([]);
           setAlbums([]);
           setError(searchError instanceof Error ? searchError.message : "Search failed.");
-          setIsSearching(false);
+          setSongsLoading(false);
+          setAlbumsLoading(false);
         }
       }
     }, 350);
@@ -77,22 +84,22 @@ export default function SearchTab() {
   }, [form]);
 
   const handlePressSong = (track: Track) => {
-    const startIndex = songs.findIndex((t) => t.videoId === track.videoId);
     setCurrentTrackId(track.videoId);
-    import("@/lib/playback").then(({ playCollection }) => {
-      playCollection({
-        type: "search",
-        id: "search-" + form,
-        title: `Search: ${form}`,
-        tracks: songs,
-        startIndex: startIndex >= 0 ? startIndex : 0,
-      }, router);
+    import("@/lib/playback").then(({ playAndOpenPlayer }) => {
+      playAndOpenPlayer(track.videoId, router);
     });
   };
 
   const handleClearSearch = () => {
     setForm("");
   };
+
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  };
+
+  const showingSongs = activeFilter === "songs";
 
   return (
     <View style={style.global}>
@@ -103,12 +110,29 @@ export default function SearchTab() {
           handleChange={setForm}
           handleClearSearch={handleClearSearch}
           autoFocus={true}
-          onBack={() => router.back()}
+          onBack={goBack}
         />
+        <View style={style.filterContainer}>
+          {(["songs", "albums"] as const).map((filter) => {
+            const isActive = activeFilter === filter;
+            return (
+              <TouchableOpacity
+                key={filter}
+                style={[style.filterChip, isActive && style.filterChipActive]}
+                onPress={() => setActiveFilter(filter)}
+                activeOpacity={0.8}
+              >
+                <Text style={[style.filterText, isActive && style.filterTextActive]}>
+                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
         <Library
-          songs={songs}
-          albums={albums}
-          isSearching={isSearching}
+          songs={showingSongs ? songs : []}
+          albums={showingSongs ? [] : albums}
+          isSearching={showingSongs ? songsLoading : albumsLoading}
           error={error}
           query={form.trim()}
           onPressSong={handlePressSong}
@@ -130,5 +154,28 @@ const style = StyleSheet.create({
   content: {
     flex: 1,
     width: "100%",
+  },
+  filterContainer: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    backgroundColor: theme.colors.card,
+  },
+  filterChipActive: {
+    backgroundColor: theme.colors.button,
+  },
+  filterText: {
+    color: theme.colors.text,
+    fontSize: 14,
+  },
+  filterTextActive: {
+    color: theme.colors.main,
+    fontWeight: "600",
   },
 });
