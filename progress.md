@@ -81,3 +81,15 @@
 - Album playback keeps the full album queue, allowing native playback to advance through tracks without another play press.
 - Queue repeat restarts the album from its first track, while repeat-one repeats only the active track. Solo tracks remain separate from album and playlist queues.
 - The album screen mini-player now occupies normal layout space below the track list instead of overlaying the final rows and controls.
+
+## 18. Playback Session & Universal Queue
+- Added a dedicated playback session store for the active source, collection metadata, queue, and current queue index.
+- Search/history single tracks now use the same `playQueue()` pipeline as albums and playlists with a queue of length one.
+- Added a separate `usePlaybackSession()` hook so collection metadata does not enter the playback state hooks.
+- Persisted the current session in SQLite schema v2 without changing Continue Listening history behavior.
+- Added an explicit native end-of-track controller because the fork can enter `Paused` at the end of a track instead of transitioning. It advances albums, repeats the current track for loop-one, and restarts the album for loop-all while ignoring manual mid-track pauses.
+
+## 19. Final Repeat State Behavior
+- Collection playback exposes `Off`, `Loop`, and `Loop 1` behavior.
+- Solo playback exposes only `Off` and `Loop`; loop repeats its one-track queue.
+- End handling checks the active queue index and playback position, so a manual pause during a song is not mistaken for a completed track.

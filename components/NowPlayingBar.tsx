@@ -3,8 +3,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
-import type { Track } from "@/lib/music";
-import { useActiveTrack, usePlaybackProgress, usePlaybackControls } from "@/hooks/usePlaybackState";
+import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
 
 function ProgressBar() {
   const { position, duration } = usePlaybackProgress();
@@ -26,6 +25,7 @@ export default function NowPlayingBar({
 }: NowPlayingBarProps) {
   const router = useRouter();
   const { track: activeTrack } = useActiveTrack();
+  const session = usePlaybackSession();
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious } = usePlaybackControls();
 
   const track = activeTrack;
@@ -43,6 +43,13 @@ export default function NowPlayingBar({
     action();
   };
 
+  const handleCollectionPress = (e: GestureResponderEvent) => {
+    e.stopPropagation?.();
+    if (session?.source === "album" && session.collectionId) {
+      router.push(`/album/${session.collectionId}`);
+    }
+  };
+
   return (
     <View style={style.container}>
       <TouchableOpacity style={style.bar} onPress={handleBarPress} activeOpacity={0.85}>
@@ -57,6 +64,13 @@ export default function NowPlayingBar({
             <Text numberOfLines={1} style={style.artist}>
               {(track.artists ?? []).join(", ") || ""}
             </Text>
+            {session?.source === "album" && session.collectionTitle && (
+              <TouchableOpacity onPress={handleCollectionPress}>
+                <Text numberOfLines={1} style={style.collectionTitle}>
+                  {session.collectionTitle}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <View style={style.right}>
@@ -124,6 +138,11 @@ const style = StyleSheet.create({
   artist: {
     color: theme.colors.subtext,
     fontSize: 12,
+    marginTop: 2,
+  },
+  collectionTitle: {
+    color: theme.colors.button,
+    fontSize: 11,
     marginTop: 2,
   },
   right: {
