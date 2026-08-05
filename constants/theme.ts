@@ -12,7 +12,7 @@ export const theme = {
     },
     accent: {
       primary: "#ff9e64",
-      like: "#f7768e",
+      like: "#ff3366",
       status: "#9ece6a",
       secondary: "#bb9af7",
       link: "#7dcfff",

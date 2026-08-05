@@ -51,12 +51,22 @@ export default function PlaylistsScreen() {
             activeOpacity={0.7}
           >
             <View style={style.itemLeft}>
-              <Ionicons name="musical-notes" size={20} color={theme.colors.text.secondary} />
+              {item.isSystem ? (
+                <View style={[style.playlistArt, { backgroundColor: theme.colors.bg.surface }]}>
+                  <Ionicons name="heart" size={24} color={theme.colors.accent.like} />
+                </View>
+              ) : (
+                <View style={[style.playlistArt, { backgroundColor: theme.colors.bg.surface }]}>
+                  <Ionicons name="musical-notes" size={24} color={theme.colors.text.secondary} />
+                </View>
+              )}
               <Text style={style.itemTitle}>{item.name}</Text>
             </View>
-            <TouchableOpacity onPress={() => remove(item.id)}>
-              <Ionicons name="trash-outline" size={18} color={theme.colors.text.secondary} />
-            </TouchableOpacity>
+            {!item.isSystem && (
+              <TouchableOpacity onPress={() => remove(item.id)}>
+                <Ionicons name="trash-outline" size={20} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            )}
           </TouchableOpacity>
         )}
       />
@@ -116,10 +126,17 @@ const style = StyleSheet.create({
   itemLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+  },
+  playlistArt: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   itemTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: theme.colors.text.primary,
   },

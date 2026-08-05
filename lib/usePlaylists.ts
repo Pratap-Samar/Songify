@@ -34,9 +34,21 @@ export function usePlaylists() {
 
   const refresh = async () => {
     try {
-      const { initDb } = await import("@/lib/database");
+      const { initDb, getLikedPlaylistId } = await import("@/lib/database");
       await initDb();
-      setPlaylists(await getPlaylists());
+      await getLikedPlaylistId(); // Ensure it exists
+      
+      const allPlaylists = await getPlaylists();
+      
+      // Pin to top
+      const liked = allPlaylists.find(p => p.isSystem === 1 && p.name === "Liked Songs");
+      const others = allPlaylists.filter(p => p.id !== liked?.id);
+      
+      if (liked) {
+        setPlaylists([liked, ...others]);
+      } else {
+        setPlaylists(others);
+      }
     } catch (e) {
       console.error("[usePlaylists] refresh failed:", e);
       setPlaylists([]);

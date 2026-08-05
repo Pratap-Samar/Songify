@@ -16,6 +16,7 @@ export interface SavedAlbum {
 export interface Playlist {
   id: number;
   name: string;
+  isSystem: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,6 +81,7 @@ export async function initDb() {
       CREATE TABLE IF NOT EXISTS playlists (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        isSystem INTEGER DEFAULT 0,
         createdAt TEXT DEFAULT (datetime('now')),
         updatedAt TEXT DEFAULT (datetime('now'))
       );
@@ -122,6 +124,18 @@ export async function initDb() {
         savedAt TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
+
+    // ── Safe dynamic column additions (independent of version) ──────────────
+    const playlistsCols = await database.getAllAsync<{ name: string }>("PRAGMA table_info(playlists);");
+    if (!playlistsCols.some((col) => col.name === "isSystem")) {
+      console.log("[DB] Adding missing isSystem column to playlists table...");
+      try {
+        await database.execAsync("ALTER TABLE playlists ADD COLUMN isSystem INTEGER DEFAULT 0;");
+        console.log("[DB] Added isSystem column successfully.");
+      } catch (e: any) {
+        console.error("[DB] Failed to add isSystem column:", e?.message ?? e);
+      }
+    }
 
     // ── Helper: dump PRAGMA table_info for a table ───────────────────────────
     const logTableInfo = async (table: string, label: string) => {
@@ -192,18 +206,19 @@ export async function getPlaylists(): Promise<Playlist[]> {
   const database = getDb();
   if (!database) return [];
   return database.getAllAsync<Playlist>(
-    "SELECT id, name, createdAt, updatedAt FROM playlists ORDER BY updatedAt DESC;"
+    "SELECT id, name, isSystem, createdAt, updatedAt FROM playlists ORDER BY updatedAt DESC;"
   );
 }
 
-export async function createPlaylist(name: string): Promise<Playlist> {
+export async function createPlaylist(name: string, isSystem = 0): Promise<Playlist> {
   const database = getDb();
   if (!database) throw new Error("Database is not available on this platform.");
-  const result = await database.runAsync("INSERT INTO playlists (name) VALUES (?);", [name]);
+  const result = await database.runAsync("INSERT INTO playlists (name, isSystem) VALUES (?, ?);", [name, isSystem]);
   const id = result.lastInsertRowId as unknown as number;
   return {
     id,
     name,
+    isSystem,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -279,6 +294,44 @@ export async function reorderPlaylistTrack(
     "UPDATE playlist_tracks SET position = ? WHERE playlistId = ? AND videoId = ?;",
     [newPosition, playlistId, videoId]
   );
+}
+
+export async function getLikedPlaylistId(): Promise<number> {
+  const database = getDb();
+  if (!database) throw new Error("Database not initialized");
+  const row = await database.getFirstAsync<{ id: number }>(
+    "SELECT id FROM playlists WHERE isSystem = 1 AND name = 'Liked Songs';"
+  );
+  if (row) return row.id;
+  const newPlaylist = await createPlaylist("Liked Songs", 1);
+  return newPlaylist.id;
+}
+
+export async function isTrackLiked(videoId: string): Promise<boolean> {
+  const database = getDb();
+  if (!database) return false;
+  try {
+    const playlistId = await getLikedPlaylistId();
+    const row = await database.getFirstAsync<{ videoId: string }>(
+      "SELECT videoId FROM playlist_tracks WHERE playlistId = ? AND videoId = ?;",
+      [playlistId, videoId]
+    );
+    return row !== null;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function toggleTrackLike(track: Track): Promise<boolean> {
+  const playlistId = await getLikedPlaylistId();
+  const liked = await isTrackLiked(track.videoId);
+  if (liked) {
+    await removeTrackFromPlaylist(playlistId, track.videoId);
+    return false;
+  } else {
+    await addTrackToPlaylist(playlistId, track);
+    return true;
+  }
 }
 
 // ── History ─────────────────────────────────────────────────────────────────
