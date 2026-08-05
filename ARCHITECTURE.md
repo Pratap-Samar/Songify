@@ -61,6 +61,7 @@ Persistence is handled exclusively by SQLite using `expo-sqlite`. Migrations run
 - **`playlist_tracks`**: Junction table for tracks within a playlist.
 - **`recent_plays`**: The user's listening history.
 - **`playback_session`**: The current playback source, collection metadata, queue, and queue index.
+- **`saved_albums`**: Albums saved by the user to their library.
 
 ### Ownership & Relationships
 - **History Ownership**: `track-player.ts` owns inserting to `recent_plays`. The UI only reads from it.
@@ -80,5 +81,4 @@ Songify connects to a Python FastAPI backend running `ytmusicapi` to stream high
 
 *Note: These modules are planned but do not yet exist in code.*
 
-- **Saved Albums (v2)**: Fetching an album once, storing its metadata locally, and making it available in the Library tab.
 - **Downloads (v3)**: Offline storage of `.m4a`/`.mp3` buffers using `expo-file-system`, storing local file URIs in the database, and providing a unified UI for online vs offline playback.

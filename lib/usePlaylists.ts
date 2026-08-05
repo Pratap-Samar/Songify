@@ -34,8 +34,11 @@ export function usePlaylists() {
 
   const refresh = async () => {
     try {
+      const { initDb } = await import("@/lib/database");
+      await initDb();
       setPlaylists(await getPlaylists());
-    } catch {
+    } catch (e) {
+      console.error("[usePlaylists] refresh failed:", e);
       setPlaylists([]);
     } finally {
       setLoading(false);

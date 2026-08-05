@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { usePlaylists } from "@/lib/usePlaylists";
+import { useAlbums } from "@/lib/useAlbums";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 
@@ -11,6 +13,7 @@ type FilterType = "playlists" | "albums" | "downloaded";
 export default function LibraryTab() {
   const router = useRouter();
   const { playlists, loading, create, remove } = usePlaylists();
+  const { albums: savedAlbums, loading: albumsLoading } = useAlbums();
   const [activeFilter, setActiveFilter] = useState<FilterType>("playlists");
   
   const [isCreating, setIsCreating] = useState(false);
@@ -135,7 +138,46 @@ export default function LibraryTab() {
           )}
 
           {activeFilter === "albums" && (
-            <Text style={[style.empty, { fontSize: baseSize }]}>No saved albums yet.</Text>
+            <>
+              {albumsLoading ? (
+                <Text style={[style.empty, { fontSize: baseSize }]}>Loading albums...</Text>
+              ) : savedAlbums.length === 0 ? (
+                <Text style={[style.empty, { fontSize: baseSize }]}>No saved albums yet — open an album and tap the + button.</Text>
+              ) : (
+                savedAlbums.map((album) => {
+                  const artists = (() => { try { return JSON.parse(album.artists) as string[]; } catch { return [album.artists]; } })();
+                  return (
+                    <TouchableOpacity
+                      key={album.id}
+                      style={style.item}
+                      onPress={() => router.push(`/album/${album.id}`)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={style.itemLeft}>
+                        <View style={style.thumbnail}>
+                          {album.thumbnailUrl ? (
+                            <Image
+                              source={{ uri: album.thumbnailUrl }}
+                              style={style.thumbnailImg}
+                              cachePolicy="disk"
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <Ionicons name="disc" size={28} color={theme.colors.subtext} />
+                          )}
+                        </View>
+                        <View style={style.itemMeta}>
+                          <Text style={[style.itemTitle, { fontSize: baseSize }]} numberOfLines={1}>{album.title}</Text>
+                          <Text style={[style.itemSubtitle, { fontSize: baseSize * 0.85 }]} numberOfLines={1}>
+                            {artists.join(", ")}{album.year ? ` • ${album.year}` : ""}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </>
           )}
 
           {activeFilter === "downloaded" && (
@@ -247,6 +289,12 @@ const style = StyleSheet.create({
     borderRadius: 4,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
+  },
+  thumbnailImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 4,
   },
   itemMeta: {
     flex: 1,
