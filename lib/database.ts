@@ -294,3 +294,35 @@ export async function clearPlaybackSession(): Promise<void> {
   if (!database) return;
   await database.runAsync("DELETE FROM playback_session WHERE id = 1;");
 }
+
+// Retrieve the persisted playback session, if any.
+export async function getSavedPlaybackSession(): Promise<PlaybackSession | null> {
+  const database = getDb();
+  if (!database) return null;
+  try {
+    const row = await database.getFirstAsync<{
+      source: string;
+      collectionId: string;
+      collectionTitle: string;
+      queue: string;
+      queueIndex: number;
+    }>(
+      `SELECT source, collectionId, collectionTitle, queue, queueIndex FROM playback_session WHERE id = 1;`
+    );
+    if (!row) return null;
+    const session: PlaybackSession = {
+      source: row.source as any,
+      collectionId: row.collectionId || null,
+      collectionTitle: row.collectionTitle || null,
+      queue: JSON.parse(row.queue),
+      currentIndex: row.queueIndex,
+    };
+    return session;
+  } catch (err) {
+    console.error("[Database] Failed to retrieve saved playback session:", err);
+    return null;
+  }
+}
+
+
+

@@ -1,4 +1,5 @@
-import { StyleSheet, Text, TouchableOpacity, View, GestureResponderEvent } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, GestureResponderEvent, AppState } from "react-native";
+import { useState, useEffect, useRef } from "react";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -28,11 +29,37 @@ export default function NowPlayingBar({
   const session = usePlaybackSession();
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious } = usePlaybackControls();
 
+  // Inactivity timeout (4 hours)
+  const [isVisible, setIsVisible] = useState(true);
+  const inactivityTimer = useRef<any>(null);
+
+  const resetInactivity = () => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(() => setIsVisible(false), 4 * 60 * 60 * 1000);
+  };
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        setIsVisible(true);
+        resetInactivity();
+      } else {
+        resetInactivity();
+      }
+    });
+    resetInactivity();
+    return () => {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      subscription.remove();
+    };
+  }, []);
+
   const track = activeTrack;
 
-  if (!track) return null; // Don't show the bar if there's no track at all
+  if (!track || !isVisible) return null; // Hide bar if no track or inactive
 
   const handleBarPress = () => {
+    resetInactivity();
     if (track) {
       router.push({ pathname: "/player", params: { videoId: track.videoId } });
     }
@@ -40,6 +67,7 @@ export default function NowPlayingBar({
 
   const handleAction = (e: GestureResponderEvent, action: () => void) => {
     e.stopPropagation?.();
+    resetInactivity();
     action();
   };
 

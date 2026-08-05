@@ -86,6 +86,27 @@ export function usePlaybackProgress() {
 export function usePlaybackSession() {
   const [session, setSession] = useState(getPlaybackSession);
 
+  // Load persisted session on mount
+  useEffect(() => {
+    async function loadSavedSession() {
+      const { getSavedPlaybackSession } = await import('@/lib/database');
+      const saved = await getSavedPlaybackSession();
+      if (saved) {
+        const { setPlaybackSession } = await import('@/lib/playback-session');
+        setPlaybackSession(
+          {
+            source: saved.source,
+            collectionId: saved.collectionId,
+            collectionTitle: saved.collectionTitle,
+          },
+          saved.queue,
+          saved.currentIndex
+        );
+      }
+    }
+    loadSavedSession();
+  }, []);
+
   useEffect(() => {
     const unsubscribe = subscribePlaybackSession(setSession);
     return () => {
@@ -95,6 +116,9 @@ export function usePlaybackSession() {
 
   return session;
 }
+
+
+
 
 export function usePlaybackControls() {
   const [isPlaying, setIsPlaying] = useState(false);
