@@ -99,3 +99,8 @@
 - Cache hits/misses and upstream response status remain logged for operational troubleshooting.
 - Resolved stream URLs use a 32-entry LRU cache with the existing five-minute TTL; audio bytes are not stored locally.
 - The next album or playlist track is prefetched into the backend URL cache without downloading the audio file to the device.
+
+## 21. Add Album Feature & Database Hot Reload Migration Crash
+- **The Issue:** The "Add Album" feature was implemented but crashed on the `saved_albums` insert because of a missing `thumbnailUrl` column in existing tables. During React Native hot reloading, the database initialization mistakenly skipped migrations because the connection state (and `initDbPromise`) was preserved, leading to "no such column" errors when queries ran on-mount before the database schema could be reliably verified or updated.
+- **The Fix:** Implemented a `user_version = 2` schema migration and explicitly destroyed the database cache variables on file reload (`db = null; initDbPromise = null;`). Restored missing playlist functions from git history, and guarded all startup hooks (`useHistory`, `usePlaylists`, `usePlaybackSession`) with `await initDb()` to guarantee they never fetch before the database is ready. 
+ 

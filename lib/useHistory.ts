@@ -10,6 +10,8 @@ export function useHistory() {
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
+      const { initDb } = await import("./database");
+      await initDb();
       const data = await getHistory(20);
       setHistory(data);
     } catch (e) {

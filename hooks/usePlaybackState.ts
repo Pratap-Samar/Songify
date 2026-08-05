@@ -89,7 +89,8 @@ export function usePlaybackSession() {
   // Load persisted session on mount
   useEffect(() => {
     async function loadSavedSession() {
-      const { getSavedPlaybackSession } = await import('@/lib/database');
+      const { getSavedPlaybackSession, initDb } = await import('@/lib/database');
+      await initDb();
       const saved = await getSavedPlaybackSession();
       if (saved) {
         const { setPlaybackSession } = await import('@/lib/playback-session');

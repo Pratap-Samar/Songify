@@ -11,6 +11,7 @@ import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useActiveTrack } from "@/hooks/usePlaybackState";
 import NowPlayingBar from "@/components/NowPlayingBar";
+import { addAlbum, removeAlbum, isAlbumSaved, initDb } from "@/lib/database";
 
 function formatDuration(ms: number | null | undefined): string {
   if (!ms) return "0:00";
@@ -29,6 +30,8 @@ export default function AlbumScreen() {
   
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const { track: activeTrack, isPlaying } = useActiveTrack();
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace("/");
@@ -54,6 +57,22 @@ export default function AlbumScreen() {
       
     return () => { mounted = false; };
   }, [id]);
+
+  // Check whether this album is already saved (always await initDb first)
+  useEffect(() => {
+    if (!album) return;
+    let mounted = true;
+    (async () => {
+      try {
+        await initDb();
+        const alreadySaved = await isAlbumSaved(album.id);
+        if (mounted) setSaved(alreadySaved);
+      } catch {
+        if (mounted) setSaved(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [album]);
 
   if (loading) {
     return (
@@ -131,8 +150,39 @@ export default function AlbumScreen() {
           <Ionicons name="play" size={24} color={theme.colors.main} />
           <Text style={style.playButtonText}>Play</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={style.actionButton}>
-          <Ionicons name="add" size={24} color={theme.colors.subtext} />
+        <TouchableOpacity
+          style={[style.actionButton, saved && style.actionButtonSaved]}
+          onPress={async () => {
+            if (saving || !album) return;
+            setSaving(true);
+            try {
+              await initDb();
+              if (saved) {
+                await removeAlbum(album.id);
+                setSaved(false);
+              } else {
+                await addAlbum(
+                  album.id,
+                  album.title,
+                  album.artists,
+                  album.artwork ?? null,
+                  album.year ?? null
+                );
+                setSaved(true);
+              }
+            } catch (e) {
+              console.error("[AlbumScreen] add/remove album failed:", e);
+            } finally {
+              setSaving(false);
+            }
+          }}
+          disabled={saving}
+        >
+          <Ionicons
+            name={saved ? "checkmark" : "add"}
+            size={24}
+            color={saved ? theme.colors.button : theme.colors.subtext}
+          />
         </TouchableOpacity>
         <TouchableOpacity style={style.actionButton} disabled={true}>
           <Ionicons name="shuffle" size={24} color={theme.colors.subtext} />
@@ -312,6 +362,10 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.card,
     justifyContent: "center",
     alignItems: "center",
+  },
+  actionButtonSaved: {
+    borderWidth: 1.5,
+    borderColor: theme.colors.button,
   },
   trackRow: {
     flexDirection: "row",

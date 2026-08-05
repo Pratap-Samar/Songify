@@ -4,6 +4,15 @@ import type { PlaybackSession } from "./playback-session";
 import { logger } from "./logger";
 import { notifyHistoryChanged } from "./historyEvents";
 
+export interface SavedAlbum {
+  id: string;
+  title: string;
+  artists: string;
+  thumbnailUrl: string | null;
+  year: string | null;
+  savedAt: string;
+}
+
 export interface Playlist {
   id: number;
   name: string;
@@ -27,108 +36,157 @@ type SQLiteModule = {
 };
 
 let db: ReturnType<SQLiteModule["openDatabaseSync"]> | null = null;
+let initDbPromise: Promise<void> | null = null;
+
+// HACK: Force re-initialization on hot reload to guarantee migrations run
+db = null;
+initDbPromise = null;
 
 function getDb() {
   if (db) return db;
   try {
     const SQLite = require("expo-sqlite") as SQLiteModule;
-    db = SQLite.openDatabaseSync("songify.db");
-  } catch {
+    // Log the actual filesystem path so we know which DB file is being opened.
+    const dbName = "songify.db";
+    console.log(`[DB] Opening database: ${dbName}`);
+    db = SQLite.openDatabaseSync(dbName);
+    console.log(`[DB] Database opened successfully.`);
+  } catch (e) {
+    console.error("[DB] Failed to open database:", e);
     db = null;
   }
   return db;
 }
 
-let initDbPromise: Promise<void> | null = null;
 
 export async function initDb() {
   if (initDbPromise) return initDbPromise;
   initDbPromise = (async () => {
     const database = getDb();
-    if (!database) return;
-    logger.debug("[Database] Running initDb()...");
-
-  const migrations = [
-    {
-      version: 1,
-      up: async (db: SQLiteDatabase) => {
-        await db.execAsync(
-          `CREATE TABLE IF NOT EXISTS playlists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            artwork TEXT,
-            createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-            updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
-          );
-          CREATE TABLE IF NOT EXISTS playlist_tracks (
-            playlistId INTEGER NOT NULL,
-            videoId TEXT NOT NULL,
-            title TEXT NOT NULL,
-            artists TEXT NOT NULL,
-            album TEXT,
-            durationMs INTEGER,
-            thumbnailUrl TEXT,
-            position INTEGER NOT NULL,
-            FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE CASCADE,
-            PRIMARY KEY (playlistId, videoId)
-          );
-          CREATE TABLE IF NOT EXISTS recent_plays (
-            videoId TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            artists TEXT NOT NULL,
-            album TEXT,
-            durationMs INTEGER,
-            thumbnailUrl TEXT,
-            lastPlayedAt TEXT NOT NULL DEFAULT (datetime('now'))
-          );
-          CREATE INDEX IF NOT EXISTS idx_recent_plays_time ON recent_plays(lastPlayedAt DESC);
-          CREATE INDEX IF NOT EXISTS idx_recent_plays_videoId ON recent_plays(videoId);
-          CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlistId ON playlist_tracks(playlistId);`
-        );
-      },
-    },
-    {
-      version: 2,
-      up: async (db: SQLiteDatabase) => {
-        await db.execAsync(
-          `CREATE TABLE IF NOT EXISTS playback_session (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            source TEXT NOT NULL,
-            collectionId TEXT,
-            collectionTitle TEXT,
-            queue TEXT NOT NULL,
-            queueIndex INTEGER NOT NULL,
-            updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
-          );`
-        );
-      },
-    },
-  ];
-
-  try {
-    const result = await database.getFirstAsync<{ user_version: number }>(
-      "PRAGMA user_version"
-    );
-    let currentVersion = result?.user_version ?? 0;
-
-    for (const migration of migrations) {
-      if (currentVersion < migration.version) {
-        logger.debug(`[Database] Applying migration ${migration.version}...`);
-        await database.withTransactionAsync(async () => {
-          await migration.up(database);
-          await database.execAsync(`PRAGMA user_version = ${migration.version}`);
-        });
-        currentVersion = migration.version;
-        logger.debug(`[Database] Migration ${migration.version} applied successfully.`);
-      }
+    if (!database) {
+      console.error("[DB] initDb: getDb() returned null — cannot initialise.");
+      return;
     }
-    logger.debug("[Database] initDb() completed successfully.");
-  } catch (err) {
-    console.error("[Database] Migration failed:", err);
-  }
+
+    // ── Step 1: Read current schema version ─────────────────────────────────
+    const versionRow = await database.getFirstAsync<{ user_version: number }>(
+      "PRAGMA user_version;"
+    );
+    const currentVersion = versionRow?.user_version ?? 0;
+    console.log(`[DB] PRAGMA user_version = ${currentVersion} (before migration)`);
+
+    // ── Step 2: Create base tables (safe on any DB at any version) ──────────
+    await database.execAsync(`
+      CREATE TABLE IF NOT EXISTS playlists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        createdAt TEXT DEFAULT (datetime('now')),
+        updatedAt TEXT DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS playlist_tracks (
+        playlistId INTEGER NOT NULL,
+        videoId TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artists TEXT NOT NULL,
+        album TEXT,
+        durationMs INTEGER,
+        thumbnailUrl TEXT,
+        position INTEGER NOT NULL,
+        PRIMARY KEY (playlistId, videoId),
+        FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS recent_plays (
+        videoId TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        artists TEXT NOT NULL,
+        album TEXT,
+        durationMs INTEGER,
+        thumbnailUrl TEXT,
+        lastPlayedAt TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS playback_session (
+        id INTEGER PRIMARY KEY,
+        source TEXT,
+        collectionId TEXT,
+        collectionTitle TEXT,
+        queue TEXT,
+        queueIndex INTEGER,
+        updatedAt TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS saved_albums (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        artists TEXT NOT NULL,
+        thumbnailUrl TEXT,
+        year TEXT,
+        savedAt TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+
+    // ── Helper: dump PRAGMA table_info for a table ───────────────────────────
+    const logTableInfo = async (table: string, label: string) => {
+      try {
+        const cols = await database.getAllAsync<{
+          cid: number; name: string; type: string; notnull: number; dflt_value: string | null; pk: number;
+        }>(`PRAGMA table_info(${table});`);
+        console.log(
+          `[DB] PRAGMA table_info(${table}) [${label}]:`,
+          cols.map((c) => `${c.cid}:${c.name}(${c.type})`).join(" | ")
+        );
+      } catch (e) {
+        console.error(`[DB] Failed to read table_info(${table}) [${label}]:`, e);
+      }
+    };
+
+    // ── Helper: run one ALTER TABLE, log the SQL, log success or full error ──
+    const alterCol = async (sql: string) => {
+      console.log(`[DB] ALTER → ${sql}`);
+      try {
+        await database.execAsync(sql);
+        console.log(`[DB] ALTER OK: ${sql}`);
+      } catch (e: any) {
+        // "duplicate column name" is expected on fresh installs — log but don't throw.
+        const msg: string = e?.message ?? String(e);
+        if (msg.toLowerCase().includes("duplicate column")) {
+          console.log(`[DB] ALTER skipped (column exists): ${sql}`);
+        } else {
+          console.error(`[DB] ALTER FAILED: ${sql} →`, msg);
+        }
+      }
+    };
+
+    // ── Step 3: Version-gated migrations ────────────────────────────────────
+    if (currentVersion < 2) {
+      console.log("[DB] Migration to v2 START");
+
+      await alterCol("ALTER TABLE recent_plays ADD COLUMN thumbnailUrl TEXT;");
+      await alterCol("ALTER TABLE recent_plays ADD COLUMN durationMs INTEGER;");
+      await alterCol("ALTER TABLE recent_plays ADD COLUMN album TEXT;");
+      await alterCol("ALTER TABLE playlist_tracks ADD COLUMN thumbnailUrl TEXT;");
+      await alterCol("ALTER TABLE saved_albums ADD COLUMN thumbnailUrl TEXT;");
+      await alterCol("ALTER TABLE saved_albums ADD COLUMN year TEXT;");
+
+      await database.execAsync("PRAGMA user_version = 2;");
+      const verifyRow = await database.getFirstAsync<{ user_version: number }>("PRAGMA user_version;");
+      console.log(`[DB] Migration 2 DONE — user_version now = ${verifyRow?.user_version}`);
+    } else {
+      console.log(`[DB] Migration 2 SKIPPED (user_version = ${currentVersion})`);
+    }
+
+    console.log("[DB] initDb complete.");
   })();
+
+  // If initDb fails, clear the cached promise so the next call retries.
+  initDbPromise!.catch((e) => {
+    console.error("[DB] initDb FAILED:", e);
+    initDbPromise = null;
+  });
+
   return initDbPromise;
 }
+
+
+// ── Playlists ───────────────────────────────────────────────────────────────
 
 export async function getPlaylists(): Promise<Playlist[]> {
   const database = getDb();
@@ -218,12 +276,12 @@ export async function reorderPlaylistTrack(
   const database = getDb();
   if (!database) return;
   await database.runAsync(
-    "UPDATE playlist_tracks SET position = ?, updatedAt = datetime('now') WHERE playlistId = ? AND videoId = ?;",
+    "UPDATE playlist_tracks SET position = ? WHERE playlistId = ? AND videoId = ?;",
     [newPosition, playlistId, videoId]
   );
 }
 
-
+// ── History ─────────────────────────────────────────────────────────────────
 
 export async function addToHistory(track: Track): Promise<void> {
   const database = getDb();
@@ -236,7 +294,7 @@ export async function addToHistory(track: Track): Promise<void> {
     track.durationMs ?? 0,
     track.thumbnailUrl ?? "",
   ];
-  
+
   await database.runAsync(
     `INSERT INTO recent_plays (videoId, title, artists, album, durationMs, thumbnailUrl, lastPlayedAt)
      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
@@ -295,7 +353,6 @@ export async function clearPlaybackSession(): Promise<void> {
   await database.runAsync("DELETE FROM playback_session WHERE id = 1;");
 }
 
-// Retrieve the persisted playback session, if any.
 export async function getSavedPlaybackSession(): Promise<PlaybackSession | null> {
   const database = getDb();
   if (!database) return null;
@@ -324,5 +381,66 @@ export async function getSavedPlaybackSession(): Promise<PlaybackSession | null>
   }
 }
 
+// ── Saved Albums ────────────────────────────────────────────────────────────
 
+export async function addAlbum(
+  id: string,
+  title: string,
+  artists: string[],
+  thumbnailUrl: string | null,
+  year: string | null
+): Promise<void> {
+  const database = getDb();
+  if (!database) return;
 
+  // ── Runtime proof: log the actual columns in saved_albums before INSERT ──
+  try {
+    const cols = await database.getAllAsync<{ cid: number; name: string; type: string }>(
+      "PRAGMA table_info(saved_albums);"
+    );
+    console.log(
+      "[DB] addAlbum — PRAGMA table_info(saved_albums) immediately before INSERT:",
+      cols.map((c) => `${c.cid}:${c.name}(${c.type})`).join(" | ")
+    );
+  } catch (e) {
+    console.error("[DB] addAlbum — failed to read table_info(saved_albums):", e);
+  }
+
+  await database.runAsync(
+    `INSERT INTO saved_albums (id, title, artists, thumbnailUrl, year, savedAt)
+     VALUES (?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(id) DO NOTHING;`,
+    id,
+    title,
+    JSON.stringify(artists),
+    thumbnailUrl ?? null,
+    year ?? null
+  );
+  console.log(`[DB] addAlbum: saved "${title}" (id=${id})`);
+}
+
+export async function getAlbums(): Promise<SavedAlbum[]> {
+  const database = getDb();
+  if (!database) return [];
+  const rows = await database.getAllAsync<SavedAlbum>(
+    `SELECT id, title, artists, thumbnailUrl, year, savedAt FROM saved_albums ORDER BY savedAt DESC;`
+  );
+  return rows;
+}
+
+export async function isAlbumSaved(id: string): Promise<boolean> {
+  const database = getDb();
+  if (!database) return false;
+  const row = await database.getFirstAsync<{ id: string }>(
+    `SELECT id FROM saved_albums WHERE id = ?;`,
+    id
+  );
+  return row !== null;
+}
+
+export async function removeAlbum(id: string): Promise<void> {
+  const database = getDb();
+  if (!database) return;
+  await database.runAsync(`DELETE FROM saved_albums WHERE id = ?;`, id);
+  logger.debug(`[Database] removeAlbum: removed album ${id}`);
+}
