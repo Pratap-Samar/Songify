@@ -151,7 +151,7 @@ export default function AlbumScreen() {
           <Text style={style.playButtonText}>Play</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[style.actionButton, saved && style.actionButtonSaved]}
+          style={style.actionButton}
           onPress={async () => {
             if (saving || !album) return;
             setSaving(true);
@@ -179,7 +179,7 @@ export default function AlbumScreen() {
           disabled={saving}
         >
           <Ionicons
-            name={saved ? "checkmark" : "add"}
+            name={saved ? "checkmark-circle" : "add"}
             size={24}
             color={saved ? theme.colors.button : theme.colors.subtext}
           />
@@ -362,10 +362,6 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.card,
     justifyContent: "center",
     alignItems: "center",
-  },
-  actionButtonSaved: {
-    borderWidth: 1.5,
-    borderColor: theme.colors.button,
   },
   trackRow: {
     flexDirection: "row",
