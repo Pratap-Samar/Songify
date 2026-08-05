@@ -103,13 +103,13 @@ export default function NowPlayingBar({
         </View>
         <View style={style.right}>
           <TouchableOpacity onPress={(e) => handleAction(e, skipToPrevious)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="play-skip-back" size={24} color={theme.colors.text} />
+            <Ionicons name="play-skip-back" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={(e) => handleAction(e, togglePlayPause)} style={style.playButton} hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}>
-            <Ionicons name={isPlaying ? "pause" : "play"} size={28} color={theme.colors.button} />
+            <Ionicons name={isPlaying ? "pause" : "play"} size={28} color={theme.colors.accent.primary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={(e) => handleAction(e, skipToNext)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="play-skip-forward" size={24} color={theme.colors.text} />
+            <Ionicons name="play-skip-forward" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -122,18 +122,18 @@ export default function NowPlayingBar({
 
 const style = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.player,
+    backgroundColor: theme.colors.bg.surface,
     borderTopWidth: 1,
     borderTopColor: "rgba(255, 255, 255, 0.05)",
   },
   progressTrack: {
     height: 2,
-    backgroundColor: theme.colors.buttonDisabled,
+    backgroundColor: theme.colors.border.strong,
     width: "100%",
   },
   progressFill: {
     height: "100%",
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
   },
   bar: {
     flexDirection: "row",
@@ -159,17 +159,17 @@ const style = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontSize: 14,
     fontWeight: "600",
   },
   artist: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 12,
     marginTop: 2,
   },
   collectionTitle: {
-    color: theme.colors.button,
+    color: theme.colors.accent.link,
     fontSize: 11,
     marginTop: 2,
   },

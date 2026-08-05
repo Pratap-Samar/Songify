@@ -82,7 +82,7 @@ export default function Library({ songs, albums = [], isSearching, error, query,
       contentContainerStyle={sections.length === 0 ? style.emptyContainer : style.listContent}
       ListEmptyComponent={
         isSearching ? (
-          <ActivityIndicator size="large" color={theme.colors.button} />
+          <ActivityIndicator size="large" color={theme.colors.accent.primary} />
         ) : error ? (
           <Text style={[style.message, style.error]}>{error}</Text>
         ) : showEmptyState ? (
@@ -109,20 +109,20 @@ const style = StyleSheet.create({
   },
   songContainer: {
     padding: 10,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     marginHorizontal: 16,
     marginVertical: 5,
     flexDirection: "row",
     height: 100,
     borderRadius: 16,
-    shadowColor: theme.colors.shadow,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
   songContainerSelected: {
-    backgroundColor: theme.colors.selectedRow,
+    backgroundColor: theme.colors.bg.surface,
   },
   songDataContainer: {
     flex: 4,
@@ -140,38 +140,38 @@ const style = StyleSheet.create({
     borderRadius: 8,
   },
   songName: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontWeight: "600",
     fontSize: 15,
   },
   songNameSelected: {
-    color: theme.colors.main,
+    color: theme.colors.accent.primary,
   },
   songArtist: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 13,
     marginTop: 4,
   },
   songArtistSelected: {
-    color: theme.colors.shadow,
+    color: theme.colors.text.primary,
   },
   message: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 15,
     margin: 24,
     textAlign: "center",
   },
   error: {
-    color: theme.colors.notificationError,
+    color: theme.colors.text.primary,
   },
   sectionHeaderContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginTop: 8,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   sectionHeaderTitle: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontSize: 18,
     fontWeight: "bold",
   },

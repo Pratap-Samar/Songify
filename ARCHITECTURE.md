@@ -85,22 +85,30 @@ Songify connects to a Python FastAPI backend running `ytmusicapi` to stream high
 
 ## Design System & Color Palette
 
-Songify uses a consistent, custom color theme (based on a "Tokyo Night" aesthetic) defined in `constants/theme.ts`.
+Songify uses a strict custom color theme known as "Sunset Swing" defined in `constants/theme.ts`.
 
-| Token | Hex Value | Usage / Meaning |
-|-------|-----------|-----------------|
-| `text` | `#c0caf5` | Primary body text and headers |
-| `subtext` | `#a9b1d6` | Secondary text, subtitles, and inactive icons |
-| `main` | `#24283b` | App background, primary screen background |
-| `sidebar` | `#1f2335` | Sidebar, modals, or elevated surfaces |
-| `player` | `#1f2335` | Bottom tab bar and Now Playing bar |
-| `card` | `#1f2335` | Cards, buttons, inputs, and list items |
-| `shadow` | `#101010` | Box shadows and depth gradients |
-| `selectedRow` | `#e0af68` | Highlighted/active row state (e.g. playing track) |
-| `button` | `#ff9e64` | Primary brand color: buttons, active tabs, checkmarks |
-| `buttonActive` | `#ff9e64` | Pressed state for buttons |
-| `buttonDisabled` | `#45475A` | Disabled button background |
-| `tabActive` | `#ff9e64` | Active state indicator for Bottom Tabs |
-| `notification` | `#ff9e64` | General badges or system notifications |
-| `notificationError` | `#f7768e` | Error states, delete actions (e.g. trash icon) |
-| `misc` | `#ff9e64` | Miscellaneous highlights |
+| Token | Hex Value | Semantic Role |
+|-------|-----------|---------------|
+| `bg.page` | `#1a1b26` | Deepest layer. Screen backgrounds behind everything (Home, Library). |
+| `bg.surface` | `#24283b` | Elevated surfaces: cards, modals, mini-player, bottom nav. |
+| `bg.row` | `#22263a` | Middle layer. List items / rows sitting on the page background. |
+| `text.primary` | `#c0caf5` | Primary body text, titles, headings, and active labels. |
+| `text.secondary` | `#7aa2f7` | Secondary text: artist names, subtitles, inactive nav labels. |
+| `text.onPrimary` | `#4a2c14` | High contrast text strictly for use on top of `accent.primary` fills. |
+| `accent.primary` | `#ff9e64` | **Single primary accent**. Play buttons, active tabs, progress fills. |
+| `accent.like` | `#f7768e` | Strictly for likes/hearts/favorites. |
+| `accent.status` | `#9ece6a` | Live/active status: "now playing" indicators, downloaded checkmarks. |
+| `accent.secondary` | `#bb9af7` | Secondary controls: shuffle, repeat, tags, genre chips. |
+| `accent.link` | `#7dcfff` | Tappable links/icons that aren't the primary action (e.g. search). |
+| `accent.premium` | `#e0af68` | Rare moments: featured playlist badge, editorial pick. |
+| `disabled.bg` | `#2a2e42` | Muted flat background for disabled buttons/chips. |
+| `disabled.text` | `#565f89` | Desaturated text for disabled states. |
+| `border.default` | `#2a2e42` | Default subtle borders and dividers. |
+| `border.strong` | `#3a3f5c` | Emphasized/dashed borders (e.g. Create playlist card). |
+
+### Hard Rules
+1. **One accent per screen:** `#ff9e64` (`accent.primary`) is the *only* color allowed on a primary CTA. 
+2. **Colors are roles:** Never rotate colors just for visual variety.
+3. **Depth via 3 flat layers:** `bg.page` → `bg.row` → `bg.surface`. Never skip a layer.
+4. **Text on colored fills:** Always use dark contrast text (e.g. `text.onPrimary`) on solid accent backgrounds.
+5. **Strict Semantics:** Green is *always* status. Red is *always* liked. Do not overload them for other meanings.

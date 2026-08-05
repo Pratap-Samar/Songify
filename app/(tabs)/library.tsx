@@ -41,7 +41,7 @@ export default function LibraryTab() {
         </View>
         <View style={style.headerRight}>
           <TouchableOpacity style={style.iconBtn} onPress={() => router.push("/search")}>
-            <Ionicons name="search" size={24} color={theme.colors.text} />
+            <Ionicons name="search" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -78,12 +78,12 @@ export default function LibraryTab() {
                 value={name}
                 onChangeText={setName}
                 placeholder="New playlist name"
-                placeholderTextColor={theme.colors.subtext}
+                placeholderTextColor={theme.colors.text.secondary}
                 onSubmitEditing={handleCreate}
                 autoFocus
               />
               <TouchableOpacity style={style.createBtn} onPress={handleCreate}>
-                <Ionicons name="checkmark" size={22} color={theme.colors.main} />
+                <Ionicons name="checkmark" size={22} color={theme.colors.text.onPrimary} />
               </TouchableOpacity>
             </View>
           )}
@@ -99,7 +99,7 @@ export default function LibraryTab() {
               >
                 <View style={style.itemLeft}>
                   <View style={style.thumbnail}>
-                    <Ionicons name="add" size={32} color={theme.colors.text} />
+                    <Ionicons name="add" size={32} color={theme.colors.text.primary} />
                   </View>
                   <View style={style.itemMeta}>
                     <Text style={[style.itemTitle, { fontSize: baseSize }]}>Create playlist</Text>
@@ -121,7 +121,7 @@ export default function LibraryTab() {
                   >
                     <View style={style.itemLeft}>
                       <View style={style.thumbnail}>
-                        <Ionicons name="musical-notes" size={24} color={theme.colors.subtext} />
+                        <Ionicons name="musical-notes" size={24} color={theme.colors.text.secondary} />
                       </View>
                       <View style={style.itemMeta}>
                         <Text style={[style.itemTitle, { fontSize: baseSize }]}>{item.name}</Text>
@@ -129,7 +129,7 @@ export default function LibraryTab() {
                       </View>
                     </View>
                     <TouchableOpacity onPress={() => remove(item.id)} style={style.deleteBtn}>
-                      <Ionicons name="trash-outline" size={18} color={theme.colors.notificationError} />
+                      <Ionicons name="trash-outline" size={18} color={theme.colors.text.secondary} />
                     </TouchableOpacity>
                   </TouchableOpacity>
                 ))
@@ -163,7 +163,7 @@ export default function LibraryTab() {
                               contentFit="cover"
                             />
                           ) : (
-                            <Ionicons name="disc" size={28} color={theme.colors.subtext} />
+                            <Ionicons name="disc" size={28} color={theme.colors.text.secondary} />
                           )}
                         </View>
                         <View style={style.itemMeta}>
@@ -174,7 +174,7 @@ export default function LibraryTab() {
                         </View>
                       </View>
                       <TouchableOpacity onPress={() => removeAlbum(album.id)} style={style.deleteBtn}>
-                        <Ionicons name="checkmark-circle" size={24} color={theme.colors.button} />
+                        <Ionicons name="checkmark-circle" size={24} color={theme.colors.accent.primary} />
                       </TouchableOpacity>
                     </TouchableOpacity>
                   );
@@ -196,7 +196,7 @@ export default function LibraryTab() {
 const style = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   headerRow: {
     flexDirection: "row",
@@ -208,7 +208,7 @@ const style = StyleSheet.create({
   },
   headerTitle: {
     fontWeight: "bold",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
   headerRight: {
     flexDirection: "row",
@@ -228,18 +228,18 @@ const style = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
     borderWidth: 1,
     borderColor: "transparent",
   },
   chipActive: {
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
   },
   chipText: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
   chipTextActive: {
-    color: theme.colors.main,
+    color: theme.colors.text.onPrimary,
     fontWeight: "600",
   },
   listScroll: {
@@ -258,14 +258,14 @@ const style = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 48,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
   createBtn: {
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
     width: 48,
     height: 48,
     borderRadius: 12,
@@ -288,7 +288,7 @@ const style = StyleSheet.create({
   thumbnail: {
     width: 64,
     height: 64,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     borderRadius: 4,
     justifyContent: "center",
     alignItems: "center",
@@ -305,17 +305,17 @@ const style = StyleSheet.create({
   },
   itemTitle: {
     fontWeight: "600",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     marginBottom: 4,
   },
   itemSubtitle: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
   },
   deleteBtn: {
     padding: 8,
   },
   empty: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     marginTop: 24,
   },
 });

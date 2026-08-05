@@ -77,7 +77,7 @@ export default function AlbumScreen() {
   if (loading) {
     return (
       <View style={style.center}>
-        <ActivityIndicator size="large" color={theme.colors.button} />
+        <ActivityIndicator size="large" color={theme.colors.accent.primary} />
       </View>
     );
   }
@@ -118,7 +118,7 @@ export default function AlbumScreen() {
   const renderHeader = () => (
     <View style={style.headerContainer}>
       <TouchableOpacity style={style.headerBack} onPress={goBack}>
-        <Ionicons name="chevron-back" size={28} color={theme.colors.text} />
+        <Ionicons name="chevron-back" size={28} color={theme.colors.text.primary} />
       </TouchableOpacity>
       
       <View style={style.artworkWrapper}>
@@ -126,7 +126,7 @@ export default function AlbumScreen() {
           <Image source={{ uri: album.artwork }} style={style.artwork} cachePolicy="disk" contentFit="cover" transition={150} />
         ) : (
           <View style={style.artworkPlaceholder}>
-            <Ionicons name="musical-notes" size={64} color={theme.colors.subtext} />
+            <Ionicons name="musical-notes" size={64} color={theme.colors.text.secondary} />
           </View>
         )}
       </View>
@@ -147,7 +147,7 @@ export default function AlbumScreen() {
 
       <View style={style.controlsRow}>
         <TouchableOpacity style={style.playButton} onPress={handlePlayAlbum}>
-          <Ionicons name="play" size={24} color={theme.colors.main} />
+          <Ionicons name="play" size={24} color={theme.colors.text.onPrimary} />
           <Text style={style.playButtonText}>Play</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -181,11 +181,11 @@ export default function AlbumScreen() {
           <Ionicons
             name={saved ? "checkmark-circle" : "add"}
             size={24}
-            color={saved ? theme.colors.button : theme.colors.subtext}
+            color={saved ? theme.colors.accent.primary : theme.colors.text.secondary}
           />
         </TouchableOpacity>
-        <TouchableOpacity style={style.actionButton} disabled={true}>
-          <Ionicons name="shuffle" size={24} color={theme.colors.subtext} />
+        <TouchableOpacity style={[style.actionButton, style.actionButtonDisabled]} disabled={true}>
+          <Ionicons name="shuffle" size={24} color={theme.colors.disabled.text} />
         </TouchableOpacity>
       </View>
     </View>
@@ -198,7 +198,7 @@ export default function AlbumScreen() {
       <TouchableOpacity style={style.trackRow} onPress={() => handlePlayTrack(index)}>
         <View style={style.trackNumberContainer}>
           {isCurrentlyPlaying && isPlaying ? (
-            <Ionicons name="stats-chart" size={16} color={theme.colors.button} />
+            <Ionicons name="stats-chart" size={16} color={theme.colors.accent.status} />
           ) : (
             <Text style={[style.trackNumber, isCurrentlyPlaying && style.trackNumberPlaying]}>
               {index + 1}
@@ -220,7 +220,7 @@ export default function AlbumScreen() {
         </Text>
         
         <TouchableOpacity style={style.downloadBtn}>
-          <Ionicons name="arrow-down-circle-outline" size={20} color={theme.colors.subtext} />
+          <Ionicons name="arrow-down-circle-outline" size={20} color={theme.colors.text.secondary} />
         </TouchableOpacity>
       </TouchableOpacity>
     );
@@ -247,27 +247,27 @@ export default function AlbumScreen() {
 const style = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   center: {
     flex: 1,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
     justifyContent: "center",
     alignItems: "center",
   },
   errorText: {
-    color: theme.colors.notificationError,
+    color: theme.colors.text.primary,
     fontSize: 16,
     marginBottom: 16,
   },
   backBtn: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
     borderRadius: 8,
   },
   backBtnText: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontWeight: "bold",
   },
   listContent: {
@@ -307,7 +307,7 @@ const style = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     marginBottom: 24,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
   },
   artwork: {
     width: "100%",
@@ -322,18 +322,18 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 8,
   },
   artist: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontWeight: "600",
     marginBottom: 8,
   },
   metadata: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     marginBottom: 24,
   },
   controlsRow: {
@@ -343,7 +343,7 @@ const style = StyleSheet.create({
   },
   playButton: {
     flexDirection: "row",
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 24,
@@ -351,7 +351,7 @@ const style = StyleSheet.create({
     gap: 8,
   },
   playButtonText: {
-    color: theme.colors.main,
+    color: theme.colors.text.onPrimary,
     fontWeight: "bold",
     fontSize: 16,
   },
@@ -359,9 +359,12 @@ const style = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
     justifyContent: "center",
     alignItems: "center",
+  },
+  actionButtonDisabled: {
+    backgroundColor: theme.colors.disabled.bg,
   },
   trackRow: {
     flexDirection: "row",
@@ -374,11 +377,11 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   trackNumber: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 14,
   },
   trackNumberPlaying: {
-    color: theme.colors.button,
+    color: theme.colors.accent.primary,
     fontWeight: "bold",
   },
   trackDetails: {
@@ -387,20 +390,20 @@ const style = StyleSheet.create({
     justifyContent: "center",
   },
   trackTitle: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontSize: 16,
     fontWeight: "500",
     marginBottom: 4,
   },
   trackTitlePlaying: {
-    color: theme.colors.button,
+    color: theme.colors.accent.primary,
   },
   trackArtist: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 13,
   },
   trackDuration: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 13,
     marginRight: 12,
   },
