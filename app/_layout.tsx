@@ -1,4 +1,4 @@
-import { Slot } from "expo-router";
+import { Stack } from "expo-router";
 import { StyleSheet, View, Platform } from "react-native";
 import TrackPlayer from "@javascriptcommon/react-native-track-player";
 
@@ -27,7 +27,21 @@ export default function RootLayout() {
 
   return (
     <View style={style.root}>
-      <Slot />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right", // Native iOS style slide for all screens
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+        <Stack.Screen
+          name="player"
+          options={{
+            presentation: "modal",
+            animation: "slide_from_bottom", // Spotify/Apple Music player slide-up effect
+          }}
+        />
+      </Stack>
     </View>
   );
 }
