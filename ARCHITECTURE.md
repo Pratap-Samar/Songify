@@ -82,3 +82,25 @@ Songify connects to a Python FastAPI backend running `ytmusicapi` to stream high
 *Note: These modules are planned but do not yet exist in code.*
 
 - **Downloads (v3)**: Offline storage of `.m4a`/`.mp3` buffers using `expo-file-system`, storing local file URIs in the database, and providing a unified UI for online vs offline playback.
+
+## Design System & Color Palette
+
+Songify uses a consistent, custom color theme (based on a "Tokyo Night" aesthetic) defined in `constants/theme.ts`.
+
+| Token | Hex Value | Usage / Meaning |
+|-------|-----------|-----------------|
+| `text` | `#c0caf5` | Primary body text and headers |
+| `subtext` | `#a9b1d6` | Secondary text, subtitles, and inactive icons |
+| `main` | `#24283b` | App background, primary screen background |
+| `sidebar` | `#1f2335` | Sidebar, modals, or elevated surfaces |
+| `player` | `#1f2335` | Bottom tab bar and Now Playing bar |
+| `card` | `#1f2335` | Cards, buttons, inputs, and list items |
+| `shadow` | `#101010` | Box shadows and depth gradients |
+| `selectedRow` | `#e0af68` | Highlighted/active row state (e.g. playing track) |
+| `button` | `#ff9e64` | Primary brand color: buttons, active tabs, checkmarks |
+| `buttonActive` | `#ff9e64` | Pressed state for buttons |
+| `buttonDisabled` | `#45475A` | Disabled button background |
+| `tabActive` | `#ff9e64` | Active state indicator for Bottom Tabs |
+| `notification` | `#ff9e64` | General badges or system notifications |
+| `notificationError` | `#f7768e` | Error states, delete actions (e.g. trash icon) |
+| `misc` | `#ff9e64` | Miscellaneous highlights |
