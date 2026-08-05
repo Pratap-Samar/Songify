@@ -46,3 +46,8 @@ app-example
 .env
 progress.md
 fixes.md
+
+# ignore markdown docs (except README)
+ARCHITECTURE.md
+corsscheck.md
+plan.md
