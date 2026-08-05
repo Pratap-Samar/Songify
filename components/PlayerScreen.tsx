@@ -3,11 +3,14 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import { Animated } from "react-native";
 import { theme } from "@/constants/theme";
 import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
 import { seekTo } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
 import AddToPlaylistModal from "./AddToPlaylistModal";
+import { toggleTrackLike, isTrackLiked } from "@/lib/database";
+import Snackbar from "./Snackbar";
 
 function fmt(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return "0:00";
@@ -24,6 +27,23 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   const { position, duration } = usePlaybackProgress();
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious, repeatMode, toggleRepeatMode } = usePlaybackControls();
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [showSnackbar, setShowSnackbar] = useState(false);
+  
+  useEffect(() => {
+    if (track) {
+      isTrackLiked(track.videoId).then(setIsLiked);
+    }
+  }, [track?.videoId]);
+
+  const handleToggleLike = async () => {
+    if (!track) return;
+    const newLikedState = await toggleTrackLike(track);
+    setIsLiked(newLikedState);
+    if (newLikedState) {
+      setShowSnackbar(true);
+    }
+  };
 
   // ── Download state (mock) ───────────────────────────────────────
   const [downloadState, setDownloadState] = useState<'none' | 'downloading' | 'downloaded'>('none');
@@ -39,6 +59,21 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   const barWidthRef = useRef(0);
   const durationRef = useRef(0);
   durationRef.current = duration;
+
+  const ringOpacity = useRef(new Animated.Value(0)).current;
+
+  const interpolatedBorderColor = ringOpacity.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['transparent', theme.colors.accent.link]
+  });
+
+  useEffect(() => {
+    Animated.timing(ringOpacity, {
+      toValue: isPlaying ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [isPlaying]);
 
   // Sync repeat mode (now handled by hook)
 
@@ -86,7 +121,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
           <Text style={style.headerTitle}>Now Playing</Text>
           {session?.source === "album" && session.collectionId && session.collectionTitle && (
             <TouchableOpacity onPress={() => router.push(`/album/${session.collectionId}`)}>
-              <Text numberOfLines={1} style={style.headerCollectionTitle}>
+              <Text numberOfLines={1} style={[style.headerCollectionTitle, { color: theme.colors.accent.link }]}>
                 {session.collectionTitle}
               </Text>
             </TouchableOpacity>
@@ -109,14 +144,16 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
           </View>
         ) : (
           <View style={style.playerLayout}>
-            <View style={[style.artworkContainer, { width: artworkSize, height: artworkSize, marginBottom: isCompact ? 48 : 96 }]}>
-              {track?.thumbnailUrl && (
-                <Image
-                  source={{ uri: track.thumbnailUrl }}
-                  style={style.artwork}
-                  cachePolicy="disk" contentFit="cover" transition={150}
-                />
-              )}
+            <View style={[style.artworkShadowContainer, { marginBottom: isCompact ? 48 : 96 }]}>
+              <Animated.View style={[style.artworkWrapper, { width: artworkSize, height: artworkSize, borderColor: interpolatedBorderColor }]}>
+                {track?.thumbnailUrl && (
+                  <Image
+                    source={{ uri: track.thumbnailUrl }}
+                    style={style.artwork}
+                    cachePolicy="disk" contentFit="cover" transition={150}
+                  />
+                )}
+              </Animated.View>
             </View>
             <View style={style.bottomSection}>
               <View style={style.titleRow}>
@@ -128,27 +165,29 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                     {(track?.artists ?? []).join(", ") || ""}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={style.downloadBtn}
-                  onPress={() => {
-                    if (downloadState === 'none') {
-                      setDownloadState('downloading');
-                      // Simulate download for now
-                      setTimeout(() => setDownloadState('downloaded'), 1500);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  {downloadState === 'downloading' ? (
-                    <ActivityIndicator size="small" color={theme.colors.text.primary} />
-                  ) : (
-                    <Ionicons 
-                      name={downloadState === 'downloaded' ? 'checkmark-circle' : 'download-outline'} 
-                      size={26} 
-                      color={downloadState === 'downloaded' ? theme.colors.accent.primary : theme.colors.text.primary} 
-                    />
-                  )}
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity
+                    style={style.downloadBtn}
+                    onPress={() => {
+                      if (downloadState === 'none') {
+                        setDownloadState('downloading');
+                        // Simulate download for now
+                        setTimeout(() => setDownloadState('downloaded'), 1500);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    {downloadState === 'downloading' ? (
+                      <ActivityIndicator size="small" color={theme.colors.text.primary} />
+                    ) : (
+                      <Ionicons 
+                        name={downloadState === 'downloaded' ? 'checkmark-circle' : 'download-outline'} 
+                        size={26} 
+                        color={downloadState === 'downloaded' ? theme.colors.accent.status : theme.colors.accent.link} 
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* ── Seek bar + time labels ──────────────────── */}
@@ -164,9 +203,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   onResponderTerminate={handleSeekEnd}
                 >
                   <View style={[style.seekFill, { width: `${displayPct * 100}%` }]} />
-                  {seeking && (
-                    <View style={[style.seekThumb, { left: `${displayPct * 100}%` }]} />
-                  )}
+                  <View style={[style.seekThumb, { left: `${displayPct * 100}%` }]} />
                 </View>
                 <View style={style.timeRow}>
                   <Text style={style.timeText}>{fmt(displayPos)}</Text>
@@ -179,11 +216,18 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
               <View style={[style.controls, isCompact && { marginTop: 24, marginBottom: 16 }]}>
                 <TouchableOpacity onPress={toggleRepeatMode} style={style.secondaryBtn}>
                   <Ionicons 
-                    name={repeatMode === 'track' ? "repeat-outline" : "repeat"} 
-                    size={26} 
-                    color={repeatMode === 'off' ? theme.colors.text.secondary : theme.colors.accent.primary} 
+                    name="repeat" 
+                    size={28} 
+                    color={theme.colors.accent.like} 
+                    style={{ 
+                      opacity: repeatMode === 'off' ? 0.5 : 1,
+                      textShadowColor: theme.colors.accent.like,
+                      textShadowRadius: 1,
+                      textShadowOffset: { width: 0.5, height: 0.5 }
+                    }}
                   />
-                  {repeatMode === 'track' && <Text style={style.repeatOneBadge}>1</Text>}
+                  {repeatMode === 'track' && <Text style={[style.repeatOneBadge, { color: theme.colors.accent.like }]}>1</Text>}
+                  {repeatMode !== 'off' && <View style={[style.repeatDot, { backgroundColor: theme.colors.accent.like }]} />}
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={skipToPrevious}>
@@ -203,8 +247,13 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   <Ionicons name="play-skip-forward" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
                 </TouchableOpacity>
                 
-                <TouchableOpacity onPress={() => setShowPlaylistModal(true)} style={style.secondaryBtn}>
-                  <Ionicons name="add-circle-outline" size={28} color={theme.colors.text.primary} />
+                <TouchableOpacity onPress={handleToggleLike} style={style.secondaryBtn}>
+                  <Ionicons 
+                    name={isLiked ? "heart" : "heart-outline"} 
+                    size={28} 
+                    color={isLiked ? theme.colors.accent.like : theme.colors.text.secondary} 
+                    style={isLiked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -215,6 +264,16 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
         visible={showPlaylistModal} 
         track={track} 
         onClose={() => setShowPlaylistModal(false)} 
+      />
+      <Snackbar
+        visible={showSnackbar}
+        message="Added to Liked Songs"
+        actionText="Add to playlist"
+        onAction={() => {
+          setShowSnackbar(false);
+          setShowPlaylistModal(true);
+        }}
+        onDismiss={() => setShowSnackbar(false)}
       />
     </View>
   );
@@ -264,17 +323,24 @@ const style = StyleSheet.create({
     justifyContent: "center",
     width: "100%",
   },
-  artworkContainer: {
+  artworkShadowContainer: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 20,
+    backgroundColor: theme.colors.bg.surface,
+    borderRadius: 16,
+  },
+  artworkWrapper: {
+    padding: 0,
+    borderRadius: 16,
+    borderWidth: 4,
+    overflow: 'hidden',
   },
   artwork: {
     width: "100%",
     height: "100%",
-    borderRadius: 16,
   },
   bottomSection: {
     width: "100%",
@@ -316,7 +382,7 @@ const style = StyleSheet.create({
     marginTop: 12,
   },
   seekTrack: {
-    height: 4,
+    height: 6,
     backgroundColor: theme.colors.border.strong,
     borderRadius: 2,
     position: "relative",
@@ -336,12 +402,12 @@ const style = StyleSheet.create({
     top: 0,
   },
   seekThumb: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#fff",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.accent.primary,
     position: "absolute",
-    marginLeft: -6,
+    marginLeft: -5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
@@ -386,6 +452,15 @@ const style = StyleSheet.create({
     fontSize: 9,
     fontWeight: "bold",
     color: theme.colors.accent.primary,
+  },
+  repeatDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.accent.secondary,
+    position: "absolute",
+    bottom: 2,
+    alignSelf: "center",
   },
   errorContainer: {
     alignItems: "center",

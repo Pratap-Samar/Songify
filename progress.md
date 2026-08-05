@@ -102,5 +102,10 @@
 
 ## 21. Add Album Feature & Database Hot Reload Migration Crash
 - **The Issue:** The "Add Album" feature was implemented but crashed on the `saved_albums` insert because of a missing `thumbnailUrl` column in existing tables. During React Native hot reloading, the database initialization mistakenly skipped migrations because the connection state (and `initDbPromise`) was preserved, leading to "no such column" errors when queries ran on-mount before the database schema could be reliably verified or updated.
-- **The Fix:** Implemented a `user_version = 2` schema migration and explicitly destroyed the database cache variables on file reload (`db = null; initDbPromise = null;`). Restored missing playlist functions from git history, and guarded all startup hooks (`useHistory`, `usePlaylists`, `usePlaybackSession`) with `await initDb()` to guarantee they never fetch before the database is ready. 
- 
+- **The Fix:** Implemented a `user_version = 2` schema migration and explicitly destroyed the database cache variables on file reload (`db = null; initDbPromise = null;`). Restored missing playlist functions from git history, and guarded all startup hooks (`useHistory`, `usePlaylists`, `usePlaybackSession`) with `await initDb()` to guarantee they never fetch before the database is ready. 
+
+## 22. Liked Songs System & Player UI Polish
+- **Liked Songs Database logic**: Updated the SQLite `playlists` table to include an `isSystem` flag. Auto-generated a "Liked Songs" playlist that pins to the top of the Library and is immune to renaming/deletion.
+- **Heart Button Integration**: Swapped the generic 'Add' button in the player and album screens with a direct `toggleLike` Heart button (styled with `accent.like` `#ff3366` and a crisp text-shadow stroke). Added a snackbar for non-intrusive feedback when liking a song.
+- **Artwork Shadow & Status Ring**: Restructured `PlayerScreen` artwork to properly cast a drop shadow across both iOS and Android (via `elevation` combined with a non-transparent `backgroundColor`). Added a responsive 4px cyan (`accent.link`) border on the artwork that animates seamlessly to indicate playback status without relying on large neon backgrounds or layout shifts.
+- **Repeat Icon weight**: Enhanced the repeat icon stroke width using text shadows to ensure it carries appropriate visual weight against the other player controls.

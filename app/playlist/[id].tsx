@@ -17,6 +17,7 @@ export default function PlaylistDetailScreen() {
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [playlistName, setPlaylistName] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [isSystem, setIsSystem] = useState(false);
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -27,7 +28,10 @@ export default function PlaylistDetailScreen() {
     const tracks = await getTracks(playlistId);
     setPlaylistTracks(tracks);
     const playlist = playlists.find((p) => p.id === playlistId);
-    if (playlist) setPlaylistName(playlist.name);
+    if (playlist) {
+      setPlaylistName(playlist.name);
+      setIsSystem(playlist.isSystem === 1);
+    }
   }, [playlistId, playlists, getTracks]);
 
   useEffect(() => {
@@ -60,7 +64,7 @@ export default function PlaylistDetailScreen() {
 
   const handleRename = async (newName: string) => {
     const trimmed = newName.trim();
-    if (trimmed && trimmed !== playlistName && !loading) {
+    if (trimmed && trimmed !== playlistName && !loading && !isSystem) {
       const playlist = playlists.find((p) => p.id === playlistId);
       if (playlist) {
         await rename(playlist.id, trimmed);
@@ -74,7 +78,10 @@ export default function PlaylistDetailScreen() {
       const tracks = await getTracks(playlistId);
       setPlaylistTracks(tracks);
       const playlist = playlists.find((p) => p.id === playlistId);
-      if (playlist) setPlaylistName(playlist.name);
+      if (playlist) {
+        setPlaylistName(playlist.name);
+        setIsSystem(playlist.isSystem === 1);
+      }
     };
     load();
   }, [playlistId, playlists, getTracks, loadTracks]);
@@ -92,6 +99,7 @@ export default function PlaylistDetailScreen() {
           onBlur={() => handleRename(playlistName)}
           placeholder="Playlist name"
           placeholderTextColor={theme.colors.text.secondary}
+          editable={!isSystem}
         />
       </View>
       <FlatList

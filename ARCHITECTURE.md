@@ -96,8 +96,8 @@ Songify uses a strict custom color theme known as "Sunset Swing" defined in `con
 | `text.secondary` | `#7aa2f7` | Secondary text: artist names, subtitles, inactive nav labels. |
 | `text.onPrimary` | `#4a2c14` | High contrast text strictly for use on top of `accent.primary` fills. |
 | `accent.primary` | `#ff9e64` | **Single primary accent**. Play buttons, active tabs, progress fills. |
-| `accent.like` | `#f7768e` | Strictly for likes/hearts/favorites. |
-| `accent.status` | `#9ece6a` | Live/active status: "now playing" indicators, downloaded checkmarks. |
+| `accent.like` | `#ff3366` | Strictly for likes/hearts/favorites. |
+| `accent.status` | `#9ece6a` | Live/active status: downloaded checkmarks. |
 | `accent.secondary` | `#bb9af7` | Secondary controls: shuffle, repeat, tags, genre chips. |
 | `accent.link` | `#7dcfff` | Tappable links/icons that aren't the primary action (e.g. search). |
 | `accent.premium` | `#e0af68` | Rare moments: featured playlist badge, editorial pick. |
