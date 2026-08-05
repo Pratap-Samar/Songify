@@ -25,10 +25,10 @@ export default function SettingsTab() {
           {settingsItems.map((item, index) => (
             <TouchableOpacity key={index} style={style.item} onPress={item.action} activeOpacity={0.7}>
               <View style={style.itemLeft}>
-                <Ionicons name={item.icon as any} size={24} color={theme.colors.text} />
+                <Ionicons name={item.icon as any} size={24} color={theme.colors.text.primary} />
                 <Text style={[style.itemLabel, { fontSize: baseSize }]}>{item.label}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.secondary} />
             </TouchableOpacity>
           ))}
         </View>
@@ -40,7 +40,7 @@ export default function SettingsTab() {
 const style = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   content: {
     paddingTop: 48,
@@ -51,10 +51,10 @@ const style = StyleSheet.create({
   },
   header: {
     fontWeight: "bold",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
   list: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
     borderRadius: 16,
     overflow: "hidden",
   },
@@ -72,6 +72,6 @@ const style = StyleSheet.create({
     gap: 16,
   },
   itemLabel: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
 });

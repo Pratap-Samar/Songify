@@ -83,7 +83,7 @@ export default function PlaylistDetailScreen() {
     <View style={style.container}>
       <View style={style.header}>
         <TouchableOpacity onPress={goBack}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <TextInput
           style={style.titleInput}
@@ -91,7 +91,7 @@ export default function PlaylistDetailScreen() {
           onChangeText={setPlaylistName}
           onBlur={() => handleRename(playlistName)}
           placeholder="Playlist name"
-          placeholderTextColor={theme.colors.subtext}
+          placeholderTextColor={theme.colors.text.secondary}
         />
       </View>
       <FlatList
@@ -102,7 +102,7 @@ export default function PlaylistDetailScreen() {
             style={style.searchToggle}
             onPress={() => setShowSearch(!showSearch)}
           >
-            <Ionicons name="add" size={20} color={theme.colors.misc} />
+            <Ionicons name="add" size={20} color={theme.colors.accent.link} />
             <Text style={style.searchToggleText}>Add track</Text>
           </TouchableOpacity>
         }
@@ -129,7 +129,7 @@ export default function PlaylistDetailScreen() {
               </View>
             </View>
             <TouchableOpacity onPress={() => handleRemoveTrack(item.videoId)}>
-              <Ionicons name="close-circle" size={22} color={theme.colors.notificationError} />
+              <Ionicons name="close-circle" size={22} color={theme.colors.text.secondary} />
             </TouchableOpacity>
           </View>
         )}
@@ -139,7 +139,7 @@ export default function PlaylistDetailScreen() {
           <TextInput
             style={style.searchInput}
             placeholder="Search to add..."
-            placeholderTextColor={theme.colors.subtext}
+            placeholderTextColor={theme.colors.text.secondary}
             value={searchQuery}
             onChangeText={handleSearch}
           />
@@ -171,7 +171,7 @@ const style = StyleSheet.create({
   container: { 
     ...StyleSheet.absoluteFillObject, 
     overflow: "hidden",
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   header: {
     flexDirection: "row",
@@ -183,7 +183,7 @@ const style = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: "700",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
   searchSection: { paddingHorizontal: 16, paddingBottom: 8 },
   searchToggle: {
@@ -192,12 +192,12 @@ const style = StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
   },
-  searchToggleText: { color: theme.colors.misc, fontSize: 14, fontWeight: "600" },
+  searchToggleText: { color: theme.colors.accent.link, fontSize: 14, fontWeight: "600" },
   searchBar: {
     borderTopWidth: 1,
     borderTopColor: "rgba(255, 255, 255, 0.1)",
     padding: 12,
-    backgroundColor: theme.colors.player,
+    backgroundColor: theme.colors.bg.surface,
   },
   searchInput: {
     backgroundColor: "rgba(0, 0, 0, 0.15)",
@@ -205,7 +205,7 @@ const style = StyleSheet.create({
     paddingHorizontal: 12,
     height: 42,
     fontSize: 14,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     borderWidth: 1,
     borderColor: "transparent",
   },
@@ -218,13 +218,13 @@ const style = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
-  searchResultTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
-  searchResultArtist: { fontSize: 12, color: theme.colors.subtext },
+  searchResultTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text.primary },
+  searchResultArtist: { fontSize: 12, color: theme.colors.text.secondary },
   trackItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     padding: 10,
     marginHorizontal: 16,
     marginBottom: 6,
@@ -235,7 +235,7 @@ const style = StyleSheet.create({
   trackInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   trackThumb: { width: 44, height: 44, borderRadius: 6 },
   trackText: { flex: 1 },
-  trackTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
-  trackArtist: { fontSize: 12, color: theme.colors.subtext },
-  empty: { textAlign: "center", color: theme.colors.subtext, marginTop: 40, fontSize: 15 },
+  trackTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text.primary },
+  trackArtist: { fontSize: 12, color: theme.colors.text.secondary },
+  empty: { textAlign: "center", color: theme.colors.text.secondary, marginTop: 40, fontSize: 15 },
 });

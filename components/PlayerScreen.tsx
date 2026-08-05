@@ -80,7 +80,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
     <View style={style.container}>
       <View style={[style.header, isCompact && { paddingTop: 24, paddingBottom: 8 }]}>
         <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={style.iconButton}>
-          <Ionicons name="chevron-down" size={32} color={theme.colors.text} />
+          <Ionicons name="chevron-down" size={32} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <View style={style.headerCenter}>
           <Text style={style.headerTitle}>Now Playing</Text>
@@ -97,7 +97,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
       <View style={[style.content, isCompact ? { paddingTop: 24 } : { paddingTop: 20 }]}>
         {error ? (
           <View style={style.errorContainer}>
-            <Ionicons name="alert-circle" size={48} color={theme.colors.notificationError} />
+            <Ionicons name="alert-circle" size={48} color={theme.colors.text.secondary} />
             <Text style={style.errorTitle}>Could not load track</Text>
             <Text style={style.errorMessage}>{error}</Text>
             <TouchableOpacity
@@ -140,12 +140,12 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   activeOpacity={0.7}
                 >
                   {downloadState === 'downloading' ? (
-                    <ActivityIndicator size="small" color={theme.colors.text} />
+                    <ActivityIndicator size="small" color={theme.colors.text.primary} />
                   ) : (
                     <Ionicons 
                       name={downloadState === 'downloaded' ? 'checkmark-circle' : 'download-outline'} 
                       size={26} 
-                      color={downloadState === 'downloaded' ? theme.colors.button : theme.colors.text} 
+                      color={downloadState === 'downloaded' ? theme.colors.accent.primary : theme.colors.text.primary} 
                     />
                   )}
                 </TouchableOpacity>
@@ -181,30 +181,30 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   <Ionicons 
                     name={repeatMode === 'track' ? "repeat-outline" : "repeat"} 
                     size={26} 
-                    color={repeatMode === 'off' ? theme.colors.subtext : theme.colors.button} 
+                    color={repeatMode === 'off' ? theme.colors.text.secondary : theme.colors.accent.primary} 
                   />
                   {repeatMode === 'track' && <Text style={style.repeatOneBadge}>1</Text>}
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={skipToPrevious}>
-                  <Ionicons name="play-skip-back" size={isCompact ? 36 : 42} color={theme.colors.text} />
+                  <Ionicons name="play-skip-back" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={togglePlayPause} style={[style.playBtn, isCompact && { width: 64, height: 64, borderRadius: 32 }]}>
                   <Ionicons
                     name={isPlaying ? "pause" : "play"}
                     size={isCompact ? 36 : 42}
-                    color={theme.colors.main}
+                    color={theme.colors.text.onPrimary}
                     style={{ marginLeft: isPlaying ? 0 : 4 }}
                   />
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={skipToNext}>
-                  <Ionicons name="play-skip-forward" size={isCompact ? 36 : 42} color={theme.colors.text} />
+                  <Ionicons name="play-skip-forward" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
                 </TouchableOpacity>
                 
                 <TouchableOpacity onPress={() => setShowPlaylistModal(true)} style={style.secondaryBtn}>
-                  <Ionicons name="add-circle-outline" size={28} color={theme.colors.text} />
+                  <Ionicons name="add-circle-outline" size={28} color={theme.colors.text.primary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -223,7 +223,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
 const style = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   header: {
     flexDirection: "row",
@@ -238,7 +238,7 @@ const style = StyleSheet.create({
     marginLeft: -8,
   },
   headerTitle: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontSize: 14,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -249,7 +249,7 @@ const style = StyleSheet.create({
     flex: 1,
   },
   headerCollectionTitle: {
-    color: theme.colors.button,
+    color: theme.colors.text.secondary,
     fontSize: 14,
     marginTop: 6,
     maxWidth: 220,
@@ -265,7 +265,7 @@ const style = StyleSheet.create({
     width: "100%",
   },
   artworkContainer: {
-    shadowColor: theme.colors.shadow,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
@@ -301,13 +301,13 @@ const style = StyleSheet.create({
     minHeight: 44,
   },
   title: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontSize: 24,
     fontWeight: "700",
     marginBottom: 6,
   },
   artist: {
-    color: theme.colors.buttonDisabled,
+    color: theme.colors.text.secondary,
     fontSize: 18,
     fontWeight: "500",
   },
@@ -317,7 +317,7 @@ const style = StyleSheet.create({
   },
   seekTrack: {
     height: 4,
-    backgroundColor: theme.colors.buttonDisabled,
+    backgroundColor: theme.colors.border.strong,
     borderRadius: 2,
     position: "relative",
     justifyContent: "center",
@@ -329,7 +329,7 @@ const style = StyleSheet.create({
   },
   seekFill: {
     height: "100%",
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
     borderRadius: 2,
     position: "absolute",
     left: 0,
@@ -342,7 +342,7 @@ const style = StyleSheet.create({
     backgroundColor: "#fff",
     position: "absolute",
     marginLeft: -6,
-    shadowColor: theme.colors.shadow,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 4,
@@ -354,7 +354,7 @@ const style = StyleSheet.create({
     marginTop: 8,
   },
   timeText: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 12,
     fontVariant: ["tabular-nums"],
   },
@@ -373,7 +373,7 @@ const style = StyleSheet.create({
     borderRadius: 36,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
   },
   secondaryBtn: {
     padding: 8,
@@ -385,7 +385,7 @@ const style = StyleSheet.create({
     right: 5,
     fontSize: 9,
     fontWeight: "bold",
-    color: theme.colors.button,
+    color: theme.colors.accent.primary,
   },
   errorContainer: {
     alignItems: "center",
@@ -393,27 +393,27 @@ const style = StyleSheet.create({
     flex: 1,
   },
   errorTitle: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontSize: 18,
     fontWeight: "700",
     marginTop: 16,
   },
   errorMessage: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     fontSize: 14,
     marginTop: 8,
     textAlign: "center",
     marginHorizontal: 32,
   },
   retryBtn: {
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 12,
     marginTop: 24,
   },
   retryBtnText: {
-    color: theme.colors.main,
+    color: theme.colors.text.onPrimary,
     fontSize: 15,
     fontWeight: "700",
   },

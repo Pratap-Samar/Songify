@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { usePlaylists } from "@/lib/usePlaylists";
 import type { Track } from "@/lib/music";
+import { theme } from "@/constants/theme";
 
 type AddToPlaylistModalProps = {
   visible: boolean;
@@ -43,11 +44,11 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
         <TouchableOpacity style={style.modalDismiss} activeOpacity={1} onPress={onClose} />
         
         <View style={style.modalContent}>
-          <LinearGradient colors={["#24283b", "#1f2335"]} style={style.gradientBg}>
+          <LinearGradient colors={[theme.colors.bg.surface, theme.colors.bg.page]} style={style.gradientBg}>
             <View style={style.header}>
               <Text style={style.title}>Add to Playlist</Text>
               <TouchableOpacity onPress={onClose}>
-                <Ionicons name="close" size={24} color="#c0caf5" />
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
               </TouchableOpacity>
             </View>
 
@@ -57,11 +58,11 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
                 value={newPlaylistName}
                 onChangeText={setNewPlaylistName}
                 placeholder="New playlist name"
-                placeholderTextColor="#565f89"
+                placeholderTextColor={theme.colors.text.secondary}
                 onSubmitEditing={handleCreate}
               />
               <TouchableOpacity style={style.createBtn} onPress={handleCreate}>
-                <Ionicons name="add" size={22} color="#1a1b26" />
+                <Ionicons name="add" size={22} color={theme.colors.text.onPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -76,7 +77,7 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
                   onPress={() => handleAdd(item.id)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="musical-notes" size={20} color="#ff9e64" />
+                  <Ionicons name="musical-notes" size={20} color={theme.colors.accent.primary} />
                   <Text style={style.itemTitle}>{item.name}</Text>
                 </TouchableOpacity>
               )}
@@ -121,7 +122,7 @@ const style = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#c0caf5",
+    color: theme.colors.text.primary,
   },
   inputRow: {
     flexDirection: "row",
@@ -131,17 +132,17 @@ const style = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: theme.colors.bg.row,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 44,
     fontSize: 15,
-    color: "#c0caf5",
+    color: theme.colors.text.primary,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "transparent",
   },
   createBtn: {
-    backgroundColor: "#ff9e64",
+    backgroundColor: theme.colors.accent.primary,
     width: 44,
     height: 44,
     borderRadius: 12,
@@ -155,21 +156,21 @@ const style = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: theme.colors.bg.row,
     padding: 14,
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.02)",
+    borderColor: "transparent",
   },
   itemTitle: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#c0caf5",
+    color: theme.colors.text.primary,
   },
   empty: {
     textAlign: "center",
-    color: "#565f89",
+    color: theme.colors.text.secondary,
     marginTop: 40,
     fontSize: 15,
   },

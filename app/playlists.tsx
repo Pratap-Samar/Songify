@@ -20,7 +20,7 @@ export default function PlaylistsScreen() {
   if (loading) {
     return (
       <View style={style.center}>
-        <Text style={{ color: theme.colors.text }}>Loading playlists...</Text>
+        <Text style={{ color: theme.colors.text.primary }}>Loading playlists...</Text>
       </View>
     );
   }
@@ -33,11 +33,11 @@ export default function PlaylistsScreen() {
           value={name}
           onChangeText={setName}
           placeholder="New playlist name"
-          placeholderTextColor={theme.colors.subtext}
+          placeholderTextColor={theme.colors.text.secondary}
           onSubmitEditing={handleCreate}
         />
         <TouchableOpacity style={style.createBtn} onPress={handleCreate}>
-          <Ionicons name="add" size={22} color={theme.colors.main} />
+          <Ionicons name="add" size={22} color={theme.colors.text.onPrimary} />
         </TouchableOpacity>
       </View>
       <FlatList
@@ -51,11 +51,11 @@ export default function PlaylistsScreen() {
             activeOpacity={0.7}
           >
             <View style={style.itemLeft}>
-              <Ionicons name="musical-notes" size={20} color={theme.colors.misc} />
+              <Ionicons name="musical-notes" size={20} color={theme.colors.text.secondary} />
               <Text style={style.itemTitle}>{item.name}</Text>
             </View>
             <TouchableOpacity onPress={() => remove(item.id)}>
-              <Ionicons name="trash-outline" size={18} color={theme.colors.notificationError} />
+              <Ionicons name="trash-outline" size={18} color={theme.colors.text.secondary} />
             </TouchableOpacity>
           </TouchableOpacity>
         )}
@@ -69,13 +69,13 @@ const style = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     padding: 16,
     overflow: "hidden",
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   inputRow: {
     flexDirection: "row",
@@ -85,17 +85,17 @@ const style = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 44,
     fontSize: 15,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     borderWidth: 1,
     borderColor: "transparent",
   },
   createBtn: {
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
     width: 44,
     height: 44,
     borderRadius: 12,
@@ -106,7 +106,7 @@ const style = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     padding: 14,
     borderRadius: 12,
     marginBottom: 8,
@@ -121,11 +121,11 @@ const style = StyleSheet.create({
   itemTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
   empty: {
     textAlign: "center",
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     marginTop: 40,
     fontSize: 15,
   },

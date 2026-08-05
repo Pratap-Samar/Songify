@@ -27,10 +27,10 @@ export default function HomeTab() {
         <View style={[style.content, { maxWidth: contentMaxWidth, padding: spacing, paddingBottom: 100 }]}>
           <View style={style.topRow}>
             <View style={style.placeholderIcon}>
-              <Ionicons name="musical-notes" size={24} color={theme.colors.subtext} />
+              <Ionicons name="musical-notes" size={24} color={theme.colors.text.secondary} />
             </View>
             <TouchableOpacity style={style.searchBarMock} onPress={() => router.push("/search")}>
-              <Ionicons name="search" size={20} color={theme.colors.subtext} />
+              <Ionicons name="search" size={20} color={theme.colors.text.secondary} />
               <Text style={[style.searchText, { fontSize: baseSize }]}>Search songs, artists, playlists...</Text>
             </TouchableOpacity>
           </View>
@@ -62,7 +62,7 @@ export default function HomeTab() {
                     {track.thumbnailUrl ? (
                       <Image source={{ uri: track.thumbnailUrl }} style={style.cardImage} cachePolicy="disk" contentFit="cover" transition={150} />
                     ) : (
-                      <Ionicons name="musical-notes" size={24} color={theme.colors.subtext} />
+                      <Ionicons name="musical-notes" size={24} color={theme.colors.text.secondary} />
                     )}
                   </View>
                   <View style={style.cardMeta}>
@@ -86,7 +86,7 @@ export default function HomeTab() {
 const style = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
     alignItems: "center",
   },
   content: {
@@ -103,7 +103,7 @@ const style = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 48,
@@ -113,16 +113,16 @@ const style = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     alignItems: "center",
     justifyContent: "center",
   },
   searchText: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
   },
   header: {
     fontWeight: "bold",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     marginBottom: 24,
   },
   emptyContainer: {
@@ -131,7 +131,7 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   emptyText: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     textAlign: "center",
   },
   historyList: {
@@ -140,7 +140,7 @@ const style = StyleSheet.create({
   historyCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.row,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
@@ -166,10 +166,10 @@ const style = StyleSheet.create({
   },
   cardTitle: {
     fontWeight: "600",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     marginBottom: 4,
   },
   cardArtist: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
   },
 });

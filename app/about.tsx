@@ -17,7 +17,7 @@ export default function AboutScreen() {
     <View style={style.container}>
       <View style={[style.headerRow, { paddingHorizontal: spacing, paddingTop: 48, paddingBottom: spacing }]}>
         <TouchableOpacity onPress={goBack} style={style.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <Text style={[style.headerTitle, { fontSize: titleSize }]}>About</Text>
       </View>
@@ -41,13 +41,13 @@ export default function AboutScreen() {
 const style = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
@@ -56,7 +56,7 @@ const style = StyleSheet.create({
   },
   headerTitle: {
     fontWeight: "bold",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
   content: {
     flex: 1,
@@ -67,21 +67,21 @@ const style = StyleSheet.create({
   },
   appTitle: {
     fontWeight: "900",
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     marginTop: 48,
   },
   appVersion: {
-    color: theme.colors.subtext,
+    color: theme.colors.text.secondary,
     marginTop: 8,
   },
   infoCard: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
     borderRadius: 16,
     padding: 24,
     width: "100%",
   },
   infoText: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     textAlign: "center",
     lineHeight: 24,
   },

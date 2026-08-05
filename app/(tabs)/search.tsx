@@ -148,7 +148,7 @@ const style = StyleSheet.create({
   global: {
     ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
     alignItems: "center",
   },
   content: {
@@ -165,17 +165,17 @@ const style = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 18,
     borderRadius: 20,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.bg.surface,
   },
   filterChipActive: {
-    backgroundColor: theme.colors.button,
+    backgroundColor: theme.colors.accent.primary,
   },
   filterText: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     fontSize: 14,
   },
   filterTextActive: {
-    color: theme.colors.main,
+    color: theme.colors.text.onPrimary,
     fontWeight: "600",
   },
 });

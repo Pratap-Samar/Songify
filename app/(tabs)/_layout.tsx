@@ -23,7 +23,7 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.colors.player,
+          backgroundColor: theme.colors.bg.surface,
           borderTopColor: "rgba(255, 255, 255, 0.05)",
         },
         tabBarLabelStyle: {
@@ -34,8 +34,8 @@ export default function TabLayout() {
           width: baseSize * 1.5,
           height: baseSize * 1.5,
         },
-        tabBarActiveTintColor: theme.colors.button,
-        tabBarInactiveTintColor: theme.colors.subtext,
+        tabBarActiveTintColor: theme.colors.accent.primary,
+        tabBarInactiveTintColor: theme.colors.text.secondary,
       }}
     >
       <Tabs.Screen
@@ -78,7 +78,7 @@ export default function TabLayout() {
 
 const style = StyleSheet.create({
   tabBarWrapper: {
-    backgroundColor: theme.colors.main,
+    backgroundColor: theme.colors.bg.page,
     alignItems: "center", // center the tab bar on tablets
     width: "100%",
   },
