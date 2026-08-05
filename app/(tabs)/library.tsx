@@ -13,7 +13,7 @@ type FilterType = "playlists" | "albums" | "downloaded";
 export default function LibraryTab() {
   const router = useRouter();
   const { playlists, loading, create, remove } = usePlaylists();
-  const { albums: savedAlbums, loading: albumsLoading } = useAlbums();
+  const { albums: savedAlbums, loading: albumsLoading, remove: removeAlbum } = useAlbums();
   const [activeFilter, setActiveFilter] = useState<FilterType>("playlists");
   
   const [isCreating, setIsCreating] = useState(false);
@@ -173,6 +173,9 @@ export default function LibraryTab() {
                           </Text>
                         </View>
                       </View>
+                      <TouchableOpacity onPress={() => removeAlbum(album.id)} style={style.deleteBtn}>
+                        <Ionicons name="checkmark-circle" size={24} color={theme.colors.button} />
+                      </TouchableOpacity>
                     </TouchableOpacity>
                   );
                 })
