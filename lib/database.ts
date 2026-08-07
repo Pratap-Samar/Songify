@@ -3,6 +3,7 @@ import type { Track } from "./music";
 import type { PlaybackSession } from "./playback-session";
 import { logger } from "./logger";
 import { notifyHistoryChanged } from "./historyEvents";
+import { notifyAlbumsChanged } from "./albumEvents";
 
 export interface SavedAlbum {
   id: string;
@@ -470,6 +471,7 @@ export async function addAlbum(
     year ?? null
   );
   console.log(`[DB] addAlbum: saved "${title}" (id=${id})`);
+  notifyAlbumsChanged();
 }
 
 export async function getAlbums(): Promise<SavedAlbum[]> {
@@ -496,4 +498,5 @@ export async function removeAlbum(id: string): Promise<void> {
   if (!database) return;
   await database.runAsync(`DELETE FROM saved_albums WHERE id = ?;`, id);
   logger.debug(`[Database] removeAlbum: removed album ${id}`);
+  notifyAlbumsChanged();
 }
