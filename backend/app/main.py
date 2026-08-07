@@ -82,6 +82,7 @@ class AlbumSearchItem(BaseModel):
 class SearchResponse(BaseModel):
     songs: list[Track]
     albums: list[AlbumSearchItem]
+    videos: list[Track] = []
 
 
 class AlbumDetails(BaseModel):
@@ -243,21 +244,24 @@ def health() -> dict[str, str]:
 async def search(q: str = Query(min_length=3, max_length=120), type: str | None = None) -> SearchResponse:
     try:
         yt = get_ytmusic()
+        results_songs, results_albums, results_videos = [], [], []
         if type == "songs":
             results_songs = await run_in_threadpool(yt.search, q, filter="songs")
-            results_albums = []
         elif type == "albums":
-            results_songs = []
             results_albums = await run_in_threadpool(yt.search, q, filter="albums")
+        elif type == "videos":
+            results_videos = await run_in_threadpool(yt.search, q, filter="videos")
         else:
-            results_songs, results_albums = await asyncio.gather(
+            results_songs, results_albums, results_videos = await asyncio.gather(
                 run_in_threadpool(yt.search, q, filter="songs"),
                 run_in_threadpool(yt.search, q, filter="albums"),
+                run_in_threadpool(yt.search, q, filter="videos"),
             )
     except Exception as error:
         raise HTTPException(status_code=502, detail="Music search is unavailable") from error
 
     songs = [track for item in results_songs if (track := normalize_track(item)) is not None]
+    videos = [track for item in results_videos if (track := normalize_track(item)) is not None]
     
     albums = []
     for item in results_albums:
@@ -274,7 +278,7 @@ async def search(q: str = Query(min_length=3, max_length=120), type: str | None 
             thumbnail_url=thumbnail_url(item)
         ))
 
-    return SearchResponse(songs=songs, albums=albums)
+    return SearchResponse(songs=songs, albums=albums, videos=videos)
 
 
 @app.get("/albums/{browse_id}", response_model=AlbumDetails, response_model_by_alias=True)

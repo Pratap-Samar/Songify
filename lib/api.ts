@@ -5,6 +5,7 @@ const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
 export type SearchResponse = {
   songs: Track[];
   albums: AlbumSearchItem[];
+  videos: Track[];
 };
 
 function getApiBaseUrl() {
@@ -32,7 +33,7 @@ function proxyImageUrl(url: string | null | undefined): string | null {
   return `${getApiBaseUrl()}/proxy/image?url=${encodeURIComponent(url)}`;
 }
 
-export async function searchTracks(query: string, signal?: AbortSignal, type?: "songs" | "albums"): Promise<SearchResponse> {
+export async function searchTracks(query: string, signal?: AbortSignal, type?: "songs" | "albums" | "videos"): Promise<SearchResponse> {
   let url = `/search?q=${encodeURIComponent(query)}`;
   if (type) {
     url += `&type=${encodeURIComponent(type)}`;
@@ -46,6 +47,10 @@ export async function searchTracks(query: string, signal?: AbortSignal, type?: "
     albums: (response.albums || []).map((album) => ({
       ...album,
       thumbnailUrl: proxyImageUrl(album.thumbnailUrl) || album.thumbnailUrl,
+    })),
+    videos: (response.videos || []).map((track) => ({
+      ...track,
+      thumbnailUrl: proxyImageUrl(track.thumbnailUrl) || track.thumbnailUrl,
     })),
   };
 }

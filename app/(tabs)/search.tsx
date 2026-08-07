@@ -10,12 +10,14 @@ import { useResponsive } from "@/lib/useResponsive";
 
 export default function SearchTab() {
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState<"songs" | "albums">("songs");
+  const [activeFilter, setActiveFilter] = useState<"songs" | "albums" | "videos">("songs");
   const [form, setForm] = useState<string>("");
   const [songs, setSongs] = useState<Track[]>([]);
   const [albums, setAlbums] = useState<AlbumSearchItem[]>([]);
+  const [videos, setVideos] = useState<Track[]>([]);
   const [songsLoading, setSongsLoading] = useState(false);
   const [albumsLoading, setAlbumsLoading] = useState(false);
+  const [videosLoading, setVideosLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
   const { contentMaxWidth } = useResponsive();
@@ -25,9 +27,11 @@ export default function SearchTab() {
     if (query.length < 3) {
       setSongs([]);
       setAlbums([]);
+      setVideos([]);
       setError(null);
       setSongsLoading(false);
       setAlbumsLoading(false);
+      setVideosLoading(false);
       return;
     }
 
@@ -35,10 +39,12 @@ export default function SearchTab() {
     const timeout = setTimeout(async () => {
       setSongsLoading(true);
       setAlbumsLoading(true);
+      setVideosLoading(true);
       setError(null);
       try {
         const songPromise = searchTracks(query, controller.signal, "songs");
         const albumPromise = searchTracks(query, controller.signal, "albums");
+        const videoPromise = searchTracks(query, controller.signal, "videos");
 
         // Fire and forget or handle concurrently but without making songs wait for albums.
         songPromise.then(res => {
@@ -66,13 +72,27 @@ export default function SearchTab() {
           }
         });
 
+        videoPromise.then(res => {
+          if (!controller.signal.aborted) {
+            setVideos(res.videos);
+            setVideosLoading(false);
+          }
+        }).catch(err => {
+          if (!controller.signal.aborted) {
+            setVideos([]);
+            setVideosLoading(false);
+          }
+        });
+
       } catch (searchError) {
         if (!controller.signal.aborted) {
           setSongs([]);
           setAlbums([]);
+          setVideos([]);
           setError(searchError instanceof Error ? searchError.message : "Search failed.");
           setSongsLoading(false);
           setAlbumsLoading(false);
+          setVideosLoading(false);
         }
       }
     }, 350);
@@ -100,6 +120,7 @@ export default function SearchTab() {
   };
 
   const showingSongs = activeFilter === "songs";
+  const showingVideos = activeFilter === "videos";
 
   return (
     <View style={style.global}>
@@ -113,7 +134,7 @@ export default function SearchTab() {
           onBack={goBack}
         />
         <View style={style.filterContainer}>
-          {(["songs", "albums"] as const).map((filter) => {
+          {(["songs", "albums", "videos"] as const).map((filter) => {
             const isActive = activeFilter === filter;
             return (
               <TouchableOpacity
@@ -130,9 +151,9 @@ export default function SearchTab() {
           })}
         </View>
         <Library
-          songs={showingSongs ? songs : []}
-          albums={showingSongs ? [] : albums}
-          isSearching={showingSongs ? songsLoading : albumsLoading}
+          songs={showingSongs ? songs : showingVideos ? videos : []}
+          albums={showingSongs || showingVideos ? [] : albums}
+          isSearching={showingSongs ? songsLoading : showingVideos ? videosLoading : albumsLoading}
           error={error}
           query={form.trim()}
           onPressSong={handlePressSong}
