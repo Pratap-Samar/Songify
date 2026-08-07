@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initDb, addAlbum, removeAlbum, getAlbums, isAlbumSaved, type SavedAlbum } from "./database";
+import { subscribeToAlbumsChanged } from "./albumEvents";
 
 export function useAlbums() {
   const [albums, setAlbums] = useState<SavedAlbum[]>([]);
@@ -12,7 +13,7 @@ export function useAlbums() {
     setAlbums(rows);
   }, []);
 
-  useEffect(() => {
+   useEffect(() => {
     let mounted = true;
     (async () => {
       await initDb();
@@ -22,7 +23,14 @@ export function useAlbums() {
         setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      return;
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    return subscribeToAlbumsChanged(refresh);
   }, [refresh]);
 
   const save = useCallback(

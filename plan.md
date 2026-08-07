@@ -83,7 +83,9 @@ Full streaming proxy:
 13. In-memory URL cache (300s TTL) avoids repeated yt-dlp resolution for seek-range requests to the same video
 14. Non-audio content-type guard prevents proxying error pages (403 text/plain) as audio
 15. **Player progress UI** — seek bar with drag-to-seek (release seeks, not continuous), elapsed (`m:ss`) and remaining (`-m:ss`) time labels; web uses `audio.ontimeupdate`, native uses `TrackPlayer` progress events via unified `addProgressListener` API
-16. **Search results scroll fix** — migrated `Library.tsx` from `songs.map()` inside a plain `View` to `FlatList`; removed `alignItems: "center"` squeezing items. **Web Layout Fix**: Addressed a React Native Web edge-case where `FlatList` containers stretch infinitely (causing clipping instead of scrolling) because Expo Router wraps screens in an unconstrained DOM element, breaking the Flexbox `min-height` shrink chain. Fixed globally by applying `...StyleSheet.absoluteFillObject` to the main container styles in `App.tsx`, `playlists.tsx`, and `playlist/[id].tsx`, explicitly pinning the screen containers to the browser viewport bounds and forcing the `FlatList` to scroll.
+16. **Android media notification & lock-screen controls** — capabilities (`Play`, `Pause`, `Stop`, `SeekTo`, `Skip`, `SkipToNext`, `SkipToPrevious`) configured in `track-player.ts`; remote-event handlers (`RemotePlay/Pause/Next/Previous/Seek/Stop`) in `playback-service.ts`; track metadata (`title`, `artist`, `artwork`) passed via `mapTrack()`; `POST_NOTIFICATIONS` permission declared in `app.json` and requested at runtime in `app/_layout.tsx` for Android 13+
+17. **Albums tab auto-refresh** — added `lib/albumEvents.ts` event bus (mirroring `historyEvents`); `addAlbum`/`removeAlbum` in `database.ts` notify on change; `useAlbums()` subscribes so the Library Albums tab updates reactively without manual refresh
+17. **Search results scroll fix** — migrated `Library.tsx` from `songs.map()` inside a plain `View` to `FlatList`; removed `alignItems: "center"` squeezing items. **Web Layout Fix**: Addressed a React Native Web edge-case where `FlatList` containers stretch infinitely (causing clipping instead of scrolling) because Expo Router wraps screens in an unconstrained DOM element, breaking the Flexbox `min-height` shrink chain. Fixed globally by applying `...StyleSheet.absoluteFillObject` to the main container styles in `App.tsx`, `playlists.tsx`, and `playlist/[id].tsx`, explicitly pinning the screen containers to the browser viewport bounds and forcing the `FlatList` to scroll.
 
 ### Known Issues
 
@@ -93,9 +95,9 @@ Full streaming proxy:
 ### Next Up (priority order)
 
 1. **Android dev build** — generate APK/AAB via `eas build --platform android` for physical device testing
-2. **Background playback on Android** — verify react-native-track-player notification controls, lock-screen controls, and background audio while app is in background
+2. **Background playback on Android** — notification/lock-screen controls implemented; verify background audio still plays while app is in the background
 3. **Queue improvements** — play a playlist → queue all tracks, skip next/previous within playlist
-4. **Android notification controls** — verify play/pause/skip/seek from notification and lock screen work correctly
+4. **Android notification verification** — notification and lock-screen play/pause/skip/seek/stop implemented; physically verify they work correctly on the device
 5. **Physical device testing** — LAN IP backend URL, background audio, battery impact, streaming stability
 6. **Polish** — loading skeletons, pull-to-refresh on search, playlist reordering, swipe-to-delete
 
