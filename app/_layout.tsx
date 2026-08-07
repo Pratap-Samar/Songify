@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import { StyleSheet, View, Platform } from "react-native";
+import { StyleSheet, View, Platform, PermissionsAndroid } from "react-native";
 import TrackPlayer from "@javascriptcommon/react-native-track-player";
 
 import { logger } from "@/lib/logger";
@@ -16,11 +16,25 @@ if (Platform.OS !== "web") {
 import { useEffect, useState } from "react";
 import { initDb } from "@/lib/database";
 
+async function requestNotificationPermission() {
+  if (Platform.OS !== "android") return;
+  try {
+    // Android 13+ (API 33) requires runtime POST_NOTIFICATIONS permission
+    const granted = await PermissionsAndroid.request(
+      "android.permission.POST_NOTIFICATIONS" as any,
+    );
+    logger.debug("[Permissions] POST_NOTIFICATIONS result:", granted);
+  } catch (err) {
+    logger.debug("[Permissions] POST_NOTIFICATIONS request failed:", err);
+  }
+}
+
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
     initDb().then(() => setDbReady(true)).catch(console.error);
+    requestNotificationPermission();
   }, []);
 
   if (!dbReady) return null;
