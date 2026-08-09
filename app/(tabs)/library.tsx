@@ -7,6 +7,7 @@ import { usePlaylists } from "@/lib/usePlaylists";
 import { useAlbums } from "@/lib/useAlbums";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
+import PlaylistArt from "@/components/PlaylistArt";
 
 type FilterType = "playlists" | "albums" | "downloaded";
 
@@ -121,16 +122,18 @@ export default function LibraryTab() {
                   >
                     <View style={style.itemLeft}>
                       <View style={style.thumbnail}>
-                        <Ionicons name="musical-notes" size={24} color={theme.colors.text.secondary} />
+                        <PlaylistArt playlist={item} size={44} />
                       </View>
                       <View style={style.itemMeta}>
                         <Text style={[style.itemTitle, { fontSize: baseSize }]}>{item.name}</Text>
                         <Text style={[style.itemSubtitle, { fontSize: baseSize * 0.85 }]}>Playlist</Text>
                       </View>
                     </View>
-                    <TouchableOpacity onPress={() => remove(item.id)} style={style.deleteBtn}>
-                      <Ionicons name="trash-outline" size={18} color={theme.colors.text.secondary} />
-                    </TouchableOpacity>
+                    {!item.isSystem && (
+                      <TouchableOpacity onPress={() => remove(item.id)} style={style.deleteBtn}>
+                        <Ionicons name="trash-outline" size={18} color={theme.colors.text.secondary} />
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
                 ))
               )}

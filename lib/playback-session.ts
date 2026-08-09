@@ -31,6 +31,15 @@ export function subscribePlaybackSession(listener: (value: PlaybackSession | nul
   return () => listeners.delete(listener);
 }
 
+// Queue to serialize DB writes and avoid "database is locked" errors
+let persistenceQueue = Promise.resolve();
+
+function enqueuePersistence(operation: () => Promise<void>, errorMessage: string) {
+  persistenceQueue = persistenceQueue.then(operation).catch((error) => {
+    console.error(`[PlaybackSession] ${errorMessage}:`, error);
+  });
+}
+
 export function setPlaybackSession(
   input: PlaybackSessionInput,
   queue: PlaybackTrack[],
@@ -39,9 +48,12 @@ export function setPlaybackSession(
   session = { ...input, queue, currentIndex };
   listeners.forEach((listener) => listener(session));
   prefetchNext(session);
-  savePlaybackSession(session).catch((error) => {
-    console.error("[PlaybackSession] Failed to persist session:", error);
-  });
+  
+  const currentSession = session;
+  enqueuePersistence(
+    () => savePlaybackSession(currentSession),
+    "Failed to persist session"
+  );
 }
 
 export function updatePlaybackSessionIndex(currentIndex: number) {
@@ -49,9 +61,12 @@ export function updatePlaybackSessionIndex(currentIndex: number) {
   session = { ...session, currentIndex };
   listeners.forEach((listener) => listener(session));
   prefetchNext(session);
-  savePlaybackSession(session).catch((error) => {
-    console.error("[PlaybackSession] Failed to persist session index:", error);
-  });
+  
+  const currentSession = session;
+  enqueuePersistence(
+    () => savePlaybackSession(currentSession),
+    "Failed to persist session index"
+  );
 }
 
 function prefetchNext(value: PlaybackSession) {
@@ -64,7 +79,9 @@ export function clearPlaybackSession() {
     session = null;
     listeners.forEach((listener) => listener(null));
   }
-  clearPersistedPlaybackSession().catch((error) => {
-    console.error("[PlaybackSession] Failed to clear persisted session:", error);
-  });
+  
+  enqueuePersistence(
+    () => clearPersistedPlaybackSession(),
+    "Failed to clear persisted session"
+  );
 }

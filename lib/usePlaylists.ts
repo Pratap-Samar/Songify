@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   createPlaylist,
   deletePlaylist,
@@ -28,11 +28,13 @@ function parsePlaylistTrack(track: PlaylistTrack): PlaylistTrackEntry {
   };
 }
 
+import { subscribeToPlaylistChanges } from "./playlistEvents";
+
 export function usePlaylists() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       const { initDb, getLikedPlaylistId } = await import("@/lib/database");
       await initDb();
@@ -55,40 +57,41 @@ export function usePlaylists() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refresh();
+    return subscribeToPlaylistChanges(refresh);
   }, []);
 
-  const create = async (name: string) => {
+  const create = useCallback(async (name: string) => {
     const playlist = await createPlaylist(name);
     await refresh();
     return playlist;
-  };
+  }, []);
 
-  const rename = async (id: number, name: string) => {
+  const rename = useCallback(async (id: number, name: string) => {
     await renamePlaylist(id, name);
     await refresh();
-  };
+  }, []);
 
-  const remove = async (id: number) => {
+  const remove = useCallback(async (id: number) => {
     await deletePlaylist(id);
     await refresh();
-  };
+  }, []);
 
-  const addTrack = async (playlistId: number, track: Track) => {
+  const addTrack = useCallback(async (playlistId: number, track: Track) => {
     await addTrackToPlaylist(playlistId, track);
-  };
+  }, []);
 
-  const removeTrack = async (playlistId: number, videoId: string) => {
+  const removeTrack = useCallback(async (playlistId: number, videoId: string) => {
     await removeTrackFromPlaylist(playlistId, videoId);
-  };
+  }, []);
 
-  const getTracks = async (playlistId: number): Promise<PlaylistTrackEntry[]> => {
+  const getTracks = useCallback(async (playlistId: number): Promise<PlaylistTrackEntry[]> => {
     const tracks = await getPlaylistTracks(playlistId);
     return tracks.map(parsePlaylistTrack);
-  };
+  }, []);
 
   return {
     playlists,

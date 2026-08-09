@@ -9,11 +9,11 @@ import { playCollection } from "@/lib/playback";
 import type { Album, Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
-import { useActiveTrack } from "@/hooks/usePlaybackState";
-import NowPlayingBar from "@/components/NowPlayingBar";
-import { addAlbum, removeAlbum, isAlbumSaved, initDb, isTrackLiked, toggleTrackLike } from "@/lib/database";
-import Snackbar from "@/components/Snackbar";
-import AddToPlaylistModal from "@/components/AddToPlaylistModal";
+import { useActiveTrack, useShuffleMode } from "@/hooks/usePlaybackState";
+import { getShuffleMode } from "@/lib/track-player";
+
+import { addAlbum, removeAlbum, isAlbumSaved, initDb } from "@/lib/database";
+import { useLikeModal } from "@/lib/LikeModalContext";
 
 function formatDuration(ms: number | null | undefined): string {
   if (!ms) return "0:00";
@@ -31,11 +31,11 @@ export default function AlbumScreen() {
   const [error, setError] = useState<string | null>(null);
   
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
+  const shuffleEnabled = useShuffleMode();
   const { track: activeTrack, isPlaying } = useActiveTrack();
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [playlistModalTrack, setPlaylistModalTrack] = useState<Track | null>(null);
+  const { openLikeModal, isLiked } = useLikeModal();
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace("/");
@@ -119,6 +119,7 @@ export default function AlbumScreen() {
     }, router);
   };
 
+
   const renderHeader = () => (
     <View style={style.headerContainer}>
       <TouchableOpacity style={style.headerBack} onPress={goBack}>
@@ -155,6 +156,15 @@ export default function AlbumScreen() {
           <Text style={style.playButtonText}>Play</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={[style.actionButton, shuffleEnabled && { borderColor: theme.colors.accent.primary }]}
+          onPress={async () => {
+            const { toggleShuffleMode } = await import('@/lib/track-player');
+            await toggleShuffleMode();
+          }}
+        >
+          <Ionicons name="shuffle" size={24} color={shuffleEnabled ? theme.colors.accent.primary : theme.colors.text.secondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
           style={style.actionButton}
           onPress={async () => {
             if (saving || !album) return;
@@ -188,29 +198,12 @@ export default function AlbumScreen() {
             color={saved ? theme.colors.accent.status : theme.colors.text.secondary}
           />
         </TouchableOpacity>
-        <TouchableOpacity style={style.actionButton} disabled={true}>
-          <Ionicons name="shuffle" size={24} color={theme.colors.accent.secondary} style={{ opacity: 0.5 }} />
-        </TouchableOpacity>
       </View>
     </View>
   );
 
   const TrackRowItem = ({ item, index, isCurrentlyPlaying, isPlaying, handlePlayTrack }: any) => {
-    const [isLiked, setIsLiked] = useState(false);
-    const [downloadState, setDownloadState] = useState<'none' | 'downloading' | 'downloaded'>('none');
-
-    useEffect(() => {
-      isTrackLiked(item.videoId).then(setIsLiked);
-    }, [item.videoId]);
-
-    const handleToggleLike = async () => {
-      const newLikedState = await toggleTrackLike(item);
-      setIsLiked(newLikedState);
-      if (newLikedState) {
-        setPlaylistModalTrack(item);
-        setSnackbarVisible(true);
-      }
-    };
+    const liked = isLiked(item.videoId);
 
     return (
       <TouchableOpacity style={style.trackRow} onPress={() => handlePlayTrack(index)}>
@@ -238,12 +231,12 @@ export default function AlbumScreen() {
         </Text>
         
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity style={style.downloadBtn} onPress={handleToggleLike}>
+          <TouchableOpacity style={style.downloadBtn} onPress={() => openLikeModal(item)}>
             <Ionicons 
-              name={isLiked ? "heart" : "heart-outline"} 
+              name={liked ? "heart" : "heart-outline"} 
               size={24} 
-              color={isLiked ? theme.colors.accent.like : theme.colors.text.secondary} 
-              style={isLiked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
+              color={liked ? theme.colors.accent.like : theme.colors.text.secondary} 
+              style={liked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
             />
           </TouchableOpacity>
         </View>
@@ -274,26 +267,6 @@ export default function AlbumScreen() {
         style={style.trackList}
         contentContainerStyle={[style.listContent, { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" }]}
         showsVerticalScrollIndicator={false}
-      />
-      <View style={[style.miniPlayerContainer, { maxWidth: contentMaxWidth }]}>
-        <NowPlayingBar />
-      </View>
-      <Snackbar
-        visible={snackbarVisible}
-        message="Added to Liked Songs"
-        actionText="Add to playlist"
-        onAction={() => {
-          setSnackbarVisible(false);
-          if (playlistModalTrack) {
-            // Modal visibility is controlled by the presence of a track
-          }
-        }}
-        onDismiss={() => setSnackbarVisible(false)}
-      />
-      <AddToPlaylistModal 
-        visible={!!playlistModalTrack && !snackbarVisible} 
-        track={playlistModalTrack} 
-        onClose={() => setPlaylistModalTrack(null)} 
       />
     </SafeAreaView>
   );

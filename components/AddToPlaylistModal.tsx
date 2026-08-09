@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList, KeyboardAvoidingView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { usePlaylists } from "@/lib/usePlaylists";
+import { getPlaylistIdsForTrack, addTrackToPlaylist, removeTrackFromPlaylist } from "@/lib/database";
 import type { Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
+import PlaylistArt from "./PlaylistArt";
 
 type AddToPlaylistModalProps = {
   visible: boolean;
@@ -13,13 +15,48 @@ type AddToPlaylistModalProps = {
 };
 
 export default function AddToPlaylistModal({ visible, track, onClose }: AddToPlaylistModalProps) {
-  const { playlists, addTrack, create } = usePlaylists();
+  const { playlists, create } = usePlaylists();
   const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<Set<number>>(new Set());
 
-  const handleAdd = async (playlistId: number) => {
-    if (track) {
-      await addTrack(playlistId, track);
-      onClose();
+  useEffect(() => {
+    if (visible && track) {
+      getPlaylistIdsForTrack(track.videoId).then((ids) => {
+        setSelectedPlaylistIds(ids);
+      });
+    } else {
+      setSelectedPlaylistIds(new Set());
+    }
+  }, [visible, track]);
+
+  const togglePlaylist = async (playlistId: number) => {
+    if (!track) return;
+    
+    // Optimistic UI update
+    const isSelected = selectedPlaylistIds.has(playlistId);
+    setSelectedPlaylistIds(prev => {
+      const next = new Set(prev);
+      if (isSelected) next.delete(playlistId);
+      else next.add(playlistId);
+      return next;
+    });
+
+    // Background DB write
+    try {
+      if (isSelected) {
+        await removeTrackFromPlaylist(playlistId, track.videoId);
+      } else {
+        await addTrackToPlaylist(playlistId, track);
+      }
+    } catch (e) {
+      console.error("[AddToPlaylistModal] Failed to toggle track in playlist:", e);
+      // Revert optimistic update on error
+      setSelectedPlaylistIds(prev => {
+        const next = new Set(prev);
+        if (isSelected) next.add(playlistId);
+        else next.delete(playlistId);
+        return next;
+      });
     }
   };
 
@@ -28,9 +65,10 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
     if (trimmed && track) {
       const newPlaylist = await create(trimmed);
       if (newPlaylist) {
-        await addTrack(newPlaylist.id, track);
+        // Optimistically add the new ID
+        setSelectedPlaylistIds(prev => new Set(prev).add(newPlaylist.id));
+        await addTrackToPlaylist(newPlaylist.id, track);
         setNewPlaylistName("");
-        onClose();
       }
     }
   };
@@ -71,16 +109,36 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
               keyExtractor={(item) => String(item.id)}
               style={style.list}
               ListEmptyComponent={<Text style={style.empty}>No playlists yet.</Text>}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={style.item}
-                  onPress={() => handleAdd(item.id)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="musical-notes" size={20} color={theme.colors.accent.primary} />
-                  <Text style={style.itemTitle}>{item.name}</Text>
-                </TouchableOpacity>
-              )}
+              renderItem={({ item }) => {
+                const isSelected = selectedPlaylistIds.has(item.id);
+                const isLikedSongs = item.isSystem === 1 && item.name === "Liked Songs";
+
+                return (
+                  <TouchableOpacity
+                    style={[style.item, isSelected && style.itemSelected]}
+                    onPress={() => togglePlaylist(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    {isLikedSongs ? (
+                      <Ionicons 
+                        name={isSelected ? "heart" : "heart-outline"} 
+                        size={22} 
+                        color={isSelected ? theme.colors.accent.primary : theme.colors.text.secondary} 
+                      />
+                    ) : (
+                      <Ionicons 
+                        name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
+                        size={22} 
+                        color={isSelected ? theme.colors.accent.primary : theme.colors.text.secondary} 
+                      />
+                    )}
+                    <PlaylistArt playlist={item} size={36} />
+                    <Text style={[style.itemTitle, isSelected && style.itemTitleSelected]}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
             />
           </LinearGradient>
         </View>
@@ -163,10 +221,17 @@ const style = StyleSheet.create({
     borderWidth: 1,
     borderColor: "transparent",
   },
+  itemSelected: {
+    borderColor: theme.colors.accent.primary + "40",
+    backgroundColor: theme.colors.accent.primary + "10",
+  },
   itemTitle: {
     fontSize: 16,
     fontWeight: "500",
     color: theme.colors.text.primary,
+  },
+  itemTitleSelected: {
+    color: theme.colors.accent.primary,
   },
   empty: {
     textAlign: "center",

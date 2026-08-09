@@ -119,3 +119,10 @@
 ## 24. Albums Tab Auto-Refresh
 - **The Issue:** Adding or removing a saved album from the album screen (`app/album/[id].tsx`) didn't update the Albums tab in `app/(tabs)/library.tsx` until a manual soft-refresh — because `useAlbums()` only fetched albums on mount and the album screen called `addAlbum`/`removeAlbum` directly from `lib/database.ts`, bypassing the hook's refresh.
 - **The Fix:** Added `lib/albumEvents.ts`, a small event bus mirroring the existing `lib/historyEvents.ts` pattern (`subscribeToAlbumsChanged` / `notifyAlbumsChanged`). `addAlbum` and `removeAlbum` in `lib/database.ts` now call `notifyAlbumsChanged()`, and `useAlbums()` subscribes via the new module so its list re-fetches automatically whenever an album is saved or removed from anywhere in the app — no navigation-focus hacks or manual refreshes needed.
+## 25. Unified Add to Playlist Modal & Playlist Reactivity
+- **The Issue:** Heart icons and 	oggleTrackLike logic were spread across PlayerScreen and lbum/[id].tsx, requiring duplicate Snackbar and AddToPlaylistModal renders in every screen. Playlists tab (Library.tsx) wasn't reactively updating when a track was added/removed to a playlist inside the modal.
+- **The Fix:**
+  - Created LikeModalContext to centralize the modal's visibility state and track payload, mounted at the root _layout.tsx so the modal is only rendered once.
+  - Introduced playlistEvents.ts (a publish-subscribe event bus) and hooked it into all database mutations (ddTrackToPlaylist, emoveTrackFromPlaylist, etc.). usePlaylists subscribes to this bus, ensuring global reactivity across tabs.
+  - Pre-warmed an isLiked memory cache inside the Context provider on mount by fetching all Liked Song IDs, allowing synchronous isLiked checks for rapid rendering of track lists.
+  - Redesigned AddToPlaylistModal.tsx for optimistic UI toggles: users can tap checkboxes/hearts without closing the modal, and the UI responds instantly before DB writes complete.

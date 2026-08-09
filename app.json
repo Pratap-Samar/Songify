@@ -12,6 +12,12 @@
         "android.permission.POST_NOTIFICATIONS"
       ],
       "package": "com.songify.app"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router",
+      "expo-sqlite",
+      "expo-web-browser"
+    ]
   }
 }

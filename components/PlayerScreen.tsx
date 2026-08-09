@@ -8,10 +8,7 @@ import { theme } from "@/constants/theme";
 import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
 import { seekTo } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
-import AddToPlaylistModal from "./AddToPlaylistModal";
-import { toggleTrackLike, isTrackLiked } from "@/lib/database";
-import Snackbar from "./Snackbar";
-
+import { useLikeModal } from "@/lib/LikeModalContext";
 function fmt(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return "0:00";
   const m = Math.floor(seconds / 60);
@@ -26,24 +23,8 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   const session = usePlaybackSession();
   const { position, duration } = usePlaybackProgress();
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious, repeatMode, toggleRepeatMode } = usePlaybackControls();
-  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [showSnackbar, setShowSnackbar] = useState(false);
-  
-  useEffect(() => {
-    if (track) {
-      isTrackLiked(track.videoId).then(setIsLiked);
-    }
-  }, [track?.videoId]);
-
-  const handleToggleLike = async () => {
-    if (!track) return;
-    const newLikedState = await toggleTrackLike(track);
-    setIsLiked(newLikedState);
-    if (newLikedState) {
-      setShowSnackbar(true);
-    }
-  };
+  const { openLikeModal, isLiked } = useLikeModal();
+  const liked = track ? isLiked(track.videoId) : false;
 
   // ── Download state (mock) ───────────────────────────────────────
   const [downloadState, setDownloadState] = useState<'none' | 'downloading' | 'downloaded'>('none');
@@ -165,7 +146,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                     {(track?.artists ?? []).join(", ") || ""}
                   </Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity
                     style={style.downloadBtn}
                     onPress={() => {
@@ -247,12 +228,12 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   <Ionicons name="play-skip-forward" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
                 </TouchableOpacity>
                 
-                <TouchableOpacity onPress={handleToggleLike} style={style.secondaryBtn}>
+                <TouchableOpacity onPress={() => track && openLikeModal(track)} style={style.secondaryBtn}>
                   <Ionicons 
-                    name={isLiked ? "heart" : "heart-outline"} 
+                    name={liked ? "heart" : "heart-outline"} 
                     size={28} 
-                    color={isLiked ? theme.colors.accent.like : theme.colors.text.secondary} 
-                    style={isLiked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
+                    color={liked ? theme.colors.accent.like : theme.colors.text.secondary} 
+                    style={liked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
                   />
                 </TouchableOpacity>
               </View>
@@ -260,21 +241,6 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
           </View>
         )}
       </View>
-      <AddToPlaylistModal 
-        visible={showPlaylistModal} 
-        track={track} 
-        onClose={() => setShowPlaylistModal(false)} 
-      />
-      <Snackbar
-        visible={showSnackbar}
-        message="Added to Liked Songs"
-        actionText="Add to playlist"
-        onAction={() => {
-          setShowSnackbar(false);
-          setShowPlaylistModal(true);
-        }}
-        onDismiss={() => setShowSnackbar(false)}
-      />
     </View>
   );
 }

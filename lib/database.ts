@@ -1,8 +1,10 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import type { Track } from "./music";
 import type { PlaybackSession } from "./playback-session";
+import type { AlbumSearchItem } from "./music";
 import { logger } from "./logger";
 import { notifyHistoryChanged } from "./historyEvents";
+import { notifyPlaylistsChanged } from "./playlistEvents";
 import { notifyAlbumsChanged } from "./albumEvents";
 
 export interface SavedAlbum {
@@ -18,6 +20,8 @@ export interface Playlist {
   id: number;
   name: string;
   isSystem: number;
+  coverEmoji?: string | null;
+  coverColor?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,7 +48,7 @@ let initDbPromise: Promise<void> | null = null;
 db = null;
 initDbPromise = null;
 
-function getDb() {
+function getDbSync() {
   if (db) return db;
   try {
     const SQLite = require("expo-sqlite") as SQLiteModule;
@@ -60,14 +64,92 @@ function getDb() {
   return db;
 }
 
+export async function getDbAsync() {
+  await initDb();
+  return getDbSync();
+}
+
+async function cleanupDuplicateLikedSongs(database: SQLiteDatabase) {
+  const duplicates = await database.getAllAsync<{ id: number }>(
+    "SELECT id FROM playlists WHERE isSystem = 1 AND name = 'Liked Songs' ORDER BY id ASC;"
+  );
+
+  if (duplicates.length > 1) {
+    const keepId = duplicates[0].id;
+    const deleteIds = duplicates.slice(1).map(d => d.id);
+    console.log(`[DB] CRITICAL: Found ${duplicates.length} duplicate 'Liked Songs' playlists.`);
+    console.log(`[DB] Keeping ID ${keepId}, deleting ${deleteIds.join(', ')}`);
+
+    for (const dupId of deleteIds) {
+      // 1. Fetch tracks in duplicate to log them before destructive merge
+      const tracksInDup = await database.getAllAsync<{ videoId: string, title: string }>(
+        "SELECT videoId, title FROM playlist_tracks WHERE playlistId = ?;",
+        [dupId]
+      );
+      
+      const tracksInKeep = await database.getAllAsync<{ videoId: string }>(
+        "SELECT videoId FROM playlist_tracks WHERE playlistId = ?;",
+        [keepId]
+      );
+      const keepTrackIds = new Set(tracksInKeep.map(t => t.videoId));
+      
+      let migrated = 0;
+      let dropped = 0;
+      
+      console.log(`[DB] Duplicate ID ${dupId} has ${tracksInDup.length} tracks.`);
+      
+      for (const track of tracksInDup) {
+        if (keepTrackIds.has(track.videoId)) {
+          dropped++;
+        } else {
+          migrated++;
+        }
+      }
+      console.log(`[DB] Merging ID ${dupId} into ID ${keepId}: ${migrated} tracks migrated, ${dropped} tracks dropped (already existed in kept playlist).`);
+
+      // 2. Perform the merge safely (INSERT OR IGNORE essentially)
+      // Since it's a primary key (playlistId, videoId), UPDATE OR IGNORE will silently ignore collisions.
+      await database.runAsync(
+        "UPDATE OR IGNORE playlist_tracks SET playlistId = ? WHERE playlistId = ?;",
+        [keepId, dupId]
+      );
+
+      // 3. Delete the duplicate playlist (cascade deletes any un-migrated colliding tracks)
+      await database.runAsync("DELETE FROM playlists WHERE id = ?;", [dupId]);
+    }
+  }
+}
+
+
 
 export async function initDb() {
   if (initDbPromise) return initDbPromise;
   initDbPromise = (async () => {
-    const database = getDb();
+    const database = getDbSync();
     if (!database) {
-      console.error("[DB] initDb: getDb() returned null — cannot initialise.");
+      console.error("[DB] initDb: getDbSync() returned null — cannot initialise.");
       return;
+    }
+
+    // ── Step 0: Set PRAGMAs (Critical for concurrency) ──────────────────────
+    let retries = 10;
+    while (retries > 0) {
+      try {
+        await database.execAsync("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;");
+        break; // Success
+      } catch (e: any) {
+        if (e.message && e.message.includes("database is locked")) {
+          retries--;
+          if (retries === 0) {
+            throw new Error(`[DB] EXHAUSTED retries waiting for database lock during PRAGMA init. Underlying error: ${e.message}`);
+          }
+          console.log(`[DB] PRAGMA locked, retrying... (${retries} attempts left)`);
+          const delay = 200 + Math.random() * 150;
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          throw e; // Non-lock error, bubble up immediately
+        }
+      }
     }
 
     // ── Step 1: Read current schema version ─────────────────────────────────
@@ -125,6 +207,14 @@ export async function initDb() {
         savedAt TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
+
+    // Ensure system playlists are unique by name to prevent race conditions during auto-creation
+    try {
+      await database.execAsync("CREATE UNIQUE INDEX IF NOT EXISTS idx_playlists_system_name ON playlists(name) WHERE isSystem = 1;");
+      console.log("[DB] Ensured unique index on system playlists.");
+    } catch (e) {
+      console.error("[DB] Failed to create unique index on system playlists:", e);
+    }
 
     // ── Safe dynamic column additions (independent of version) ──────────────
     const playlistsCols = await database.getAllAsync<{ name: string }>("PRAGMA table_info(playlists);");
@@ -188,6 +278,25 @@ export async function initDb() {
       console.log(`[DB] Migration 2 SKIPPED (user_version = ${currentVersion})`);
     }
 
+    if (currentVersion < 3) {
+      console.log("[DB] Migration to v3 START");
+
+      await alterCol("ALTER TABLE playlists ADD COLUMN coverEmoji TEXT;");
+      await alterCol("ALTER TABLE playlists ADD COLUMN coverColor TEXT;");
+
+      // Update Liked Songs system playlist to have the heart emoji and color
+      await alterCol("UPDATE playlists SET coverEmoji = '❤️', coverColor = '#f7768e' WHERE isSystem = 1;");
+
+      await database.execAsync("PRAGMA user_version = 3;");
+      const verifyRow = await database.getFirstAsync<{ user_version: number }>("PRAGMA user_version;");
+      console.log(`[DB] Migration 3 DONE — user_version now = ${verifyRow?.user_version}`);
+    } else {
+      console.log(`[DB] Migration 3 SKIPPED (user_version = ${currentVersion})`);
+    }
+
+    // Run one-time cleanup for any duplicate "Liked Songs" playlists caused by prior race conditions
+    await cleanupDuplicateLikedSongs(database);
+
     console.log("[DB] initDb complete.");
   })();
 
@@ -204,18 +313,19 @@ export async function initDb() {
 // ── Playlists ───────────────────────────────────────────────────────────────
 
 export async function getPlaylists(): Promise<Playlist[]> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return [];
   return database.getAllAsync<Playlist>(
-    "SELECT id, name, isSystem, createdAt, updatedAt FROM playlists ORDER BY updatedAt DESC;"
+    "SELECT id, name, isSystem, coverEmoji, coverColor, createdAt, updatedAt FROM playlists ORDER BY updatedAt DESC;"
   );
 }
 
 export async function createPlaylist(name: string, isSystem = 0): Promise<Playlist> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) throw new Error("Database is not available on this platform.");
   const result = await database.runAsync("INSERT INTO playlists (name, isSystem) VALUES (?, ?);", [name, isSystem]);
   const id = result.lastInsertRowId as unknown as number;
+  notifyPlaylistsChanged();
   return {
     id,
     name,
@@ -226,24 +336,52 @@ export async function createPlaylist(name: string, isSystem = 0): Promise<Playli
 }
 
 export async function renamePlaylist(id: number, name: string): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
+  const row = await database.getFirstAsync<{ isSystem: number }>(
+    "SELECT isSystem FROM playlists WHERE id = ?;",
+    [id]
+  );
+  if (row?.isSystem === 1) {
+    console.warn(`[DB] Attempted to rename system playlist ${id}. Ignoring.`);
+    return;
+  }
   await database.runAsync(
     "UPDATE playlists SET name = ?, updatedAt = datetime('now') WHERE id = ?;",
     [name, id]
   );
+  notifyPlaylistsChanged();
+}
+
+export async function updatePlaylistArt(id: number, coverEmoji: string | null, coverColor: string | null): Promise<void> {
+  const database = await getDbAsync();
+  if (!database) return;
+  await database.runAsync(
+    "UPDATE playlists SET coverEmoji = ?, coverColor = ?, updatedAt = datetime('now') WHERE id = ?;",
+    [coverEmoji, coverColor, id]
+  );
+  notifyPlaylistsChanged();
 }
 
 export async function deletePlaylist(id: number): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
+  const row = await database.getFirstAsync<{ isSystem: number }>(
+    "SELECT isSystem FROM playlists WHERE id = ?;",
+    [id]
+  );
+  if (row?.isSystem === 1) {
+    console.warn(`[DB] Attempted to delete system playlist ${id}. Ignoring.`);
+    return;
+  }
   await database.runAsync("DELETE FROM playlists WHERE id = ?;", [id]);
+  notifyPlaylistsChanged();
 }
 
 export async function getPlaylistTracks(
   playlistId: number
 ): Promise<PlaylistTrack[]> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return [];
   return database.getAllAsync<PlaylistTrack>(
     "SELECT playlistId, videoId, title, artists, album, durationMs, thumbnailUrl, position FROM playlist_tracks WHERE playlistId = ? ORDER BY position ASC;",
@@ -251,37 +389,64 @@ export async function getPlaylistTracks(
   );
 }
 
-export async function addTrackToPlaylist(
-  playlistId: number,
-  track: Track
-): Promise<void> {
-  const database = getDb();
-  if (!database) return;
-  await database.runAsync(
-    "INSERT OR IGNORE INTO playlist_tracks (playlistId, videoId, title, artists, album, durationMs, thumbnailUrl, position) VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM playlist_tracks WHERE playlistId = ?));",
+export async function addTrackToPlaylist(playlistId: number, track: Track) {
+  const db = await getDbAsync();
+  if (!db) return;
+
+  const res = await db.getFirstAsync<{ maxPos: number }>(
+    `SELECT MAX(position) as maxPos FROM playlist_tracks WHERE playlistId = ?`,
+    [playlistId]
+  );
+  const position = (res?.maxPos ?? -1) + 1;
+
+  await db.runAsync(
+    `INSERT OR IGNORE INTO playlist_tracks (playlistId, videoId, title, artists, album, durationMs, thumbnailUrl, position)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       playlistId,
       track.videoId,
       track.title,
       JSON.stringify(track.artists),
-      typeof track.album === "object" && track.album !== null ? (track.album as any).name || JSON.stringify(track.album) : (track.album ?? ""),
-      track.durationMs ?? 0,
-      track.thumbnailUrl ?? "",
-      playlistId,
+      track.album,
+      track.durationMs,
+      track.thumbnailUrl,
+      position,
     ]
   );
+  await db.runAsync(
+    `UPDATE playlists SET updatedAt = datetime('now') WHERE id = ?`,
+    [playlistId]
+  );
+  notifyPlaylistsChanged();
+}
+
+export async function updateTrackDuration(videoId: string, durationMs: number) {
+  const db = await getDbAsync();
+  if (!db) return;
+
+  await db.runAsync(
+    `UPDATE playlist_tracks SET durationMs = ? WHERE videoId = ? AND (durationMs IS NULL OR durationMs = 0)`,
+    [durationMs, videoId]
+  );
+  await db.runAsync(
+    `UPDATE recent_plays SET durationMs = ? WHERE videoId = ? AND (durationMs IS NULL OR durationMs = 0)`,
+    [durationMs, videoId]
+  );
+  notifyPlaylistsChanged();
+  notifyHistoryChanged();
 }
 
 export async function removeTrackFromPlaylist(
   playlistId: number,
   videoId: string
 ): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
   await database.runAsync(
     "DELETE FROM playlist_tracks WHERE playlistId = ? AND videoId = ?;",
     [playlistId, videoId]
   );
+  notifyPlaylistsChanged();
 }
 
 export async function reorderPlaylistTrack(
@@ -289,27 +454,39 @@ export async function reorderPlaylistTrack(
   videoId: string,
   newPosition: number
 ): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
   await database.runAsync(
     "UPDATE playlist_tracks SET position = ? WHERE playlistId = ? AND videoId = ?;",
     [newPosition, playlistId, videoId]
   );
+  notifyPlaylistsChanged();
 }
 
-export async function getLikedPlaylistId(): Promise<number> {
-  const database = getDb();
-  if (!database) throw new Error("Database not initialized");
-  const row = await database.getFirstAsync<{ id: number }>(
-    "SELECT id FROM playlists WHERE isSystem = 1 AND name = 'Liked Songs';"
-  );
-  if (row) return row.id;
-  const newPlaylist = await createPlaylist("Liked Songs", 1);
-  return newPlaylist.id;
+let getLikedPlaylistIdPromise: Promise<number> | null = null;
+
+export function getLikedPlaylistId(): Promise<number> {
+  if (!getLikedPlaylistIdPromise) {
+    getLikedPlaylistIdPromise = (async () => {
+      const database = await getDbAsync();
+      if (!database) throw new Error("Database not initialized");
+      const row = await database.getFirstAsync<{ id: number }>(
+        "SELECT id FROM playlists WHERE isSystem = 1 AND name = 'Liked Songs';"
+      );
+      if (row) return row.id;
+      // If we got here, it really doesn't exist, create it!
+      const newPlaylist = await createPlaylist("Liked Songs", 1);
+      return newPlaylist.id;
+    })().catch((e) => {
+      getLikedPlaylistIdPromise = null;
+      throw e;
+    });
+  }
+  return getLikedPlaylistIdPromise;
 }
 
 export async function isTrackLiked(videoId: string): Promise<boolean> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return false;
   try {
     const playlistId = await getLikedPlaylistId();
@@ -323,22 +500,35 @@ export async function isTrackLiked(videoId: string): Promise<boolean> {
   }
 }
 
-export async function toggleTrackLike(track: Track): Promise<boolean> {
-  const playlistId = await getLikedPlaylistId();
-  const liked = await isTrackLiked(track.videoId);
-  if (liked) {
-    await removeTrackFromPlaylist(playlistId, track.videoId);
-    return false;
-  } else {
-    await addTrackToPlaylist(playlistId, track);
-    return true;
+export async function getPlaylistIdsForTrack(videoId: string): Promise<Set<number>> {
+  const database = await getDbAsync();
+  if (!database) return new Set();
+  const rows = await database.getAllAsync<{ playlistId: number }>(
+    "SELECT playlistId FROM playlist_tracks WHERE videoId = ?;",
+    [videoId]
+  );
+  return new Set(rows.map(r => r.playlistId));
+}
+
+export async function getLikedTrackIds(): Promise<Set<string>> {
+  const database = await getDbAsync();
+  if (!database) return new Set();
+  try {
+    const playlistId = await getLikedPlaylistId();
+    const rows = await database.getAllAsync<{ videoId: string }>(
+      "SELECT videoId FROM playlist_tracks WHERE playlistId = ?;",
+      [playlistId]
+    );
+    return new Set(rows.map(r => r.videoId));
+  } catch (e) {
+    return new Set();
   }
 }
 
 // ── History ─────────────────────────────────────────────────────────────────
 
 export async function addToHistory(track: Track): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
   const params = [
     track.videoId,
@@ -360,7 +550,7 @@ export async function addToHistory(track: Track): Promise<void> {
 }
 
 export async function getHistory(limit = 20): Promise<Track[]> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return [];
   logger.debug(`[Database] getHistory: Fetching top ${limit} recent_plays...`);
   const rows = await database.getAllAsync<any>(
@@ -379,7 +569,7 @@ export async function getHistory(limit = 20): Promise<Track[]> {
 }
 
 export async function savePlaybackSession(session: PlaybackSession): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
   await database.runAsync(
     `INSERT INTO playback_session (id, source, collectionId, collectionTitle, queue, queueIndex, updatedAt)
@@ -402,13 +592,13 @@ export async function savePlaybackSession(session: PlaybackSession): Promise<voi
 }
 
 export async function clearPlaybackSession(): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
   await database.runAsync("DELETE FROM playback_session WHERE id = 1;");
 }
 
 export async function getSavedPlaybackSession(): Promise<PlaybackSession | null> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return null;
   try {
     const row = await database.getFirstAsync<{
@@ -444,7 +634,7 @@ export async function addAlbum(
   thumbnailUrl: string | null,
   year: string | null
 ): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
 
   // ── Runtime proof: log the actual columns in saved_albums before INSERT ──
@@ -475,7 +665,7 @@ export async function addAlbum(
 }
 
 export async function getAlbums(): Promise<SavedAlbum[]> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return [];
   const rows = await database.getAllAsync<SavedAlbum>(
     `SELECT id, title, artists, thumbnailUrl, year, savedAt FROM saved_albums ORDER BY savedAt DESC;`
@@ -484,7 +674,7 @@ export async function getAlbums(): Promise<SavedAlbum[]> {
 }
 
 export async function isAlbumSaved(id: string): Promise<boolean> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return false;
   const row = await database.getFirstAsync<{ id: string }>(
     `SELECT id FROM saved_albums WHERE id = ?;`,
@@ -494,7 +684,7 @@ export async function isAlbumSaved(id: string): Promise<boolean> {
 }
 
 export async function removeAlbum(id: string): Promise<void> {
-  const database = getDb();
+  const database = await getDbAsync();
   if (!database) return;
   await database.runAsync(`DELETE FROM saved_albums WHERE id = ?;`, id);
   logger.debug(`[Database] removeAlbum: removed album ${id}`);

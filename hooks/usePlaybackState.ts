@@ -10,6 +10,8 @@ import {
   togglePlayPause as nativeTogglePlayPause,
   skipToNext as nativeSkipToNext,
   skipToPrevious as nativeSkipToPrevious,
+  getShuffleMode,
+  addShuffleListener,
 } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
 import { getPlaybackSession, subscribePlaybackSession } from "@/lib/playback-session";
@@ -83,6 +85,23 @@ export function usePlaybackProgress() {
   return { position, duration };
 }
 
+export function useShuffleMode() {
+  const [isShuffled, setIsShuffled] = useState(getShuffleMode);
+
+  useEffect(() => {
+    let active = true;
+    const unsub = addShuffleListener((shuffled) => {
+      if (active) setIsShuffled(shuffled);
+    });
+    return () => {
+      active = false;
+      unsub?.remove?.();
+    };
+  }, []);
+
+  return isShuffled;
+}
+
 export function usePlaybackSession() {
   const [session, setSession] = useState(getPlaybackSession);
 
@@ -124,7 +143,7 @@ export function usePlaybackSession() {
 export function usePlaybackControls() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [repeatMode, setRepeatModeState] = useState<"off" | "track" | "queue">("off");
-  const [shuffleEnabled, setShuffleEnabled] = useState(false);
+  const shuffleEnabled = useShuffleMode();
   const session = usePlaybackSession();
 
   useEffect(() => {
@@ -179,8 +198,8 @@ export function usePlaybackControls() {
   };
 
   const toggleShuffle = async () => {
-    // Not fully implemented natively yet, but we'll flip the UI state
-    setShuffleEnabled((prev) => !prev);
+    const { toggleShuffleMode } = await import('@/lib/track-player');
+    await toggleShuffleMode();
   };
 
   return {

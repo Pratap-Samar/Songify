@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
 
 function ProgressBar() {
@@ -19,11 +20,14 @@ function ProgressBar() {
 
 type NowPlayingBarProps = {
   onPress?: () => void;
+  withSafeArea?: boolean;
 };
 
 export default function NowPlayingBar({
   onPress,
+  withSafeArea = false,
 }: NowPlayingBarProps) {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { track: activeTrack } = useActiveTrack();
   const session = usePlaybackSession();
@@ -79,7 +83,7 @@ export default function NowPlayingBar({
   };
 
   return (
-    <View style={style.container}>
+    <View style={[style.container, withSafeArea && { paddingBottom: insets.bottom }]}>
       <TouchableOpacity style={style.bar} onPress={handleBarPress} activeOpacity={0.85}>
         <View style={style.left}>
           {track.thumbnailUrl && (

@@ -19,6 +19,72 @@ let webCurrentTrack: (Track & { streamUrl: string }) | null = null;
 let webState = "None";
 let webRepeatMode: 'off' | 'track' | 'queue' = 'off';
 let nativeRepeatMode: 'off' | 'track' | 'queue' = 'off';
+let isShuffled = false;
+let shuffleListeners = new Set<(shuffled: boolean) => void>();
+
+export function getShuffleMode() { return isShuffled; }
+export function addShuffleListener(cb: (s: boolean) => void) {
+  shuffleListeners.add(cb);
+  return { remove: () => shuffleListeners.delete(cb) };
+}
+
+export async function toggleShuffleMode() {
+  isShuffled = !isShuffled;
+  shuffleListeners.forEach((cb) => cb(isShuffled));
+  if (isWeb) return;
+
+  const currentSession = getPlaybackSession();
+  if (!currentSession) return;
+
+  const activeIndex = await TrackPlayer.getActiveTrackIndex();
+  if (activeIndex === undefined || activeIndex === null) return;
+  const queue = await TrackPlayer.getQueue();
+  if (!queue || queue.length === 0) return;
+
+  const activeTrack = queue[activeIndex];
+  if (!activeTrack) return;
+
+  // Find active track in original session queue
+  const origIdx = currentSession.queue.findIndex(t => t.videoId === activeTrack.id);
+
+  if (isShuffled) {
+    // Remove upcoming tracks
+    const trackIndexesToRemove = queue.map((_, i) => i).slice(activeIndex + 1);
+    if (trackIndexesToRemove.length > 0) {
+      await TrackPlayer.remove(trackIndexesToRemove);
+    }
+
+    const tracksToShuffle = origIdx !== -1 
+      ? currentSession.queue.slice(origIdx + 1).map(mapTrack as any)
+      : currentSession.queue.map(mapTrack as any);
+      
+    for (let i = tracksToShuffle.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [tracksToShuffle[i], tracksToShuffle[j]] = [tracksToShuffle[j], tracksToShuffle[i]];
+    }
+    if (tracksToShuffle.length > 0) await TrackPlayer.add(tracksToShuffle);
+  } else {
+    if (origIdx !== -1) {
+      // Remove all tracks EXCEPT the active one to fully rewrite the queue around it
+      const indexesToRemove = queue.map((_, i) => i).filter(i => i !== activeIndex);
+      if (indexesToRemove.length > 0) {
+        await TrackPlayer.remove(indexesToRemove);
+      }
+
+      const after = currentSession.queue.slice(origIdx + 1).map(mapTrack as any);
+      if (after.length > 0) {
+        await TrackPlayer.add(after);
+      }
+
+      const before = currentSession.queue.slice(0, origIdx).map(mapTrack as any);
+      if (before.length > 0) {
+        // Insert tracks before the current track at index 0
+        await TrackPlayer.add(before, 0);
+      }
+    }
+  }
+}
+
 let webQueue: (Track & { streamUrl: string })[] = [];
 let webQueueIndex = -1;
 const webStateListeners = new Set<(s: string) => void>();
@@ -114,7 +180,7 @@ function unmapTrack(item: Record<string, unknown>): Track & { streamUrl: string 
     title: item.title as string,
     artists: item.artist ? (item.artist as string).split(", ") : [],
     thumbnailUrl: (item.artwork as string) || null,
-    durationMs: (item.duration as number) || null,
+    durationMs: item.duration ? Math.floor((item.duration as number) * 1000) : null,
     album: null,
   };
 }
@@ -310,23 +376,43 @@ export async function playQueue(
     if (latestPlayId !== playId) return;
     
     const mappedTracks = tracks.map(mapTrack);
-    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add()", TrackPlayer.add(mappedTracks));
-    await logQueueState(playId, "playQueue", "After Queue Add");
-    if (latestPlayId !== playId) return;
     
     if (sessionInput.source === "track" && nativeRepeatMode === "queue") {
       nativeRepeatMode = "off";
     }
     await TrackPlayer.setRepeatMode(RepeatMode.Off);
     
-    // TrackPlayer.add() returns an insertion position, not the requested
-    // active-track index. Always skip to the caller's selected queue index.
-    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.skip()", TrackPlayer.skip(index));
-    await logQueueState(playId, "playQueue", "After Queue Skip");
+    const firstTrack = mappedTracks[index];
+    const otherTracksBefore = mappedTracks.slice(0, index);
+    const otherTracksAfter = mappedTracks.slice(index + 1);
+
+    if (firstTrack) {
+      await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add([first])", TrackPlayer.add([firstTrack]));
+      await logQueueState(playId, "playQueue", "After Initial Queue Add");
+
+      if (latestPlayId !== playId) return;
+      // Start playing immediately to avoid flashing through earlier tracks
+      await trace(playId, "playQueue", rootVideoId, "TrackPlayer.play()", TrackPlayer.play());
+
+      if (latestPlayId !== playId) return;
+      let finalAfter = otherTracksAfter;
+      if (isShuffled) {
+        finalAfter = [...otherTracksAfter];
+        for (let i = finalAfter.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [finalAfter[i], finalAfter[j]] = [finalAfter[j], finalAfter[i]];
+        }
+      }
+      if (finalAfter.length > 0) {
+        await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add(after)", TrackPlayer.add(finalAfter));
+      }
+      if (otherTracksBefore.length > 0) {
+        await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add(before, 0)", TrackPlayer.add(otherTracksBefore, 0));
+      }
+    }
     
     if (latestPlayId !== playId) return;
     setPlaybackSession(sessionInput, tracks, index);
-    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.play()", TrackPlayer.play());
     await logQueueState(playId, "playQueue", "After Queue Play");
   } finally {
     unlock();
@@ -351,6 +437,12 @@ export async function skipToNext() {
     return;
   }
   await ensureSetup();
+  const queue = await TrackPlayer.getQueue();
+  const index = await TrackPlayer.getActiveTrackIndex();
+  
+  if (index !== undefined && queue && index === queue.length - 1 && nativeRepeatMode === 'queue') {
+    return TrackPlayer.skip(0);
+  }
   return TrackPlayer.skipToNext();
 }
 
@@ -369,6 +461,12 @@ export async function skipToPrevious() {
     return;
   }
   await ensureSetup();
+  const queue = await TrackPlayer.getQueue();
+  const index = await TrackPlayer.getActiveTrackIndex();
+  
+  if (index === 0 && nativeRepeatMode === 'queue' && queue?.length) {
+    return TrackPlayer.skip(queue.length - 1);
+  }
   return TrackPlayer.skipToPrevious();
 }
 
@@ -439,7 +537,16 @@ export function addTrackChangeListener(callback: (track: Track & { streamUrl: st
       const payload = event as { index?: number; track?: Record<string, unknown> };
       const track = payload.track;
       if (payload.index !== undefined) updatePlaybackSessionIndex(payload.index);
-      if (track) callback(unmapTrack(track));
+      if (track) {
+        const unmapped = unmapTrack(track);
+        callback(unmapped);
+        
+        if (unmapped.durationMs && unmapped.durationMs > 0) {
+           import("./database").then(({ updateTrackDuration }) => {
+             updateTrackDuration(unmapped.videoId, unmapped.durationMs!).catch(console.error);
+           });
+        }
+      }
     });
   });
   return { remove: () => { cancelled = true; nativeSub?.remove?.(); } };
@@ -488,6 +595,8 @@ export async function setRepeatMode(mode: 'off' | 'track' | 'queue') {
   }
   await ensureSetup();
   nativeRepeatMode = mode;
+  // NOTE: We intentionally disable native RepeatMode and manage it manually in `scheduleQueueAdvance`.
+  // Native queue looping bypasses our custom `addToHistory` tracking and session state updates.
   await TrackPlayer.setRepeatMode(RepeatMode.Off);
 }
 

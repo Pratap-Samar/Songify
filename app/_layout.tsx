@@ -29,8 +29,13 @@ async function requestNotificationPermission() {
   }
 }
 
+import { LikeModalProvider } from "@/lib/LikeModalContext";
+import PersistentTabBar from "@/components/PersistentTabBar";
+import { usePathname } from "expo-router";
+
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     initDb().then(() => setDbReady(true)).catch(console.error);
@@ -40,23 +45,26 @@ export default function RootLayout() {
   if (!dbReady) return null;
 
   return (
-    <View style={style.root}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: "slide_from_right", // Native iOS style slide for all screens
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
-        <Stack.Screen
-          name="player"
-          options={{
-            presentation: "modal",
-            animation: "slide_from_bottom", // Spotify/Apple Music player slide-up effect
+    <LikeModalProvider>
+      <View style={style.root}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "slide_from_right", // Native iOS style slide for all screens
           }}
-        />
-      </Stack>
-    </View>
+        >
+          <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+          <Stack.Screen
+            name="player"
+            options={{
+              presentation: "modal",
+              animation: "slide_from_bottom", // Spotify/Apple Music player slide-up effect
+            }}
+          />
+        </Stack>
+        {!pathname.startsWith('/player') && <PersistentTabBar />}
+      </View>
+    </LikeModalProvider>
   );
 }
 
