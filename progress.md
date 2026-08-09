@@ -119,10 +119,27 @@
 ## 24. Albums Tab Auto-Refresh
 - **The Issue:** Adding or removing a saved album from the album screen (`app/album/[id].tsx`) didn't update the Albums tab in `app/(tabs)/library.tsx` until a manual soft-refresh — because `useAlbums()` only fetched albums on mount and the album screen called `addAlbum`/`removeAlbum` directly from `lib/database.ts`, bypassing the hook's refresh.
 - **The Fix:** Added `lib/albumEvents.ts`, a small event bus mirroring the existing `lib/historyEvents.ts` pattern (`subscribeToAlbumsChanged` / `notifyAlbumsChanged`). `addAlbum` and `removeAlbum` in `lib/database.ts` now call `notifyAlbumsChanged()`, and `useAlbums()` subscribes via the new module so its list re-fetches automatically whenever an album is saved or removed from anywhere in the app — no navigation-focus hacks or manual refreshes needed.
+
 ## 25. Unified Add to Playlist Modal & Playlist Reactivity
-- **The Issue:** Heart icons and 	oggleTrackLike logic were spread across PlayerScreen and lbum/[id].tsx, requiring duplicate Snackbar and AddToPlaylistModal renders in every screen. Playlists tab (Library.tsx) wasn't reactively updating when a track was added/removed to a playlist inside the modal.
+- **The Issue:** Heart icons and 	oggleTrackLike logic were spread across PlayerScreen and  lbum/[id].tsx, requiring duplicate Snackbar and AddToPlaylistModal renders in every screen. Playlists tab (Library.tsx) wasn't reactively updating when a track was added/removed to a playlist inside the modal.
 - **The Fix:**
   - Created LikeModalContext to centralize the modal's visibility state and track payload, mounted at the root _layout.tsx so the modal is only rendered once.
-  - Introduced playlistEvents.ts (a publish-subscribe event bus) and hooked it into all database mutations (ddTrackToPlaylist, emoveTrackFromPlaylist, etc.). usePlaylists subscribes to this bus, ensuring global reactivity across tabs.
+  - Introduced playlistEvents.ts (a publish-subscribe event bus) and hooked it into all database mutations ( ddTrackToPlaylist, emoveTrackFromPlaylist, etc.). usePlaylists subscribes to this bus, ensuring global reactivity across tabs.
   - Pre-warmed an isLiked memory cache inside the Context provider on mount by fetching all Liked Song IDs, allowing synchronous isLiked checks for rapid rendering of track lists.
   - Redesigned AddToPlaylistModal.tsx for optimistic UI toggles: users can tap checkboxes/hearts without closing the modal, and the UI responds instantly before DB writes complete.
+
+## 26. Curated Icon Picker & Playlist Customization
+- **The Upgrade:** Replaced the plain-text emoji input with a curated, scrollable horizontal grid of `Ionicons` (e.g., `musical-notes`, `headset`, `flame`, `star`) to better align with the app's aesthetic.
+- **Implementation:** 
+  - Created a v4 SQLite schema migration to add a `coverIcon` column.
+  - Added self-healing fallback logic: existing playlists missing a `coverIcon` gracefully fall back to the `musical-notes` icon or their legacy `coverEmoji` text.
+  - Re-wrote the Liked Songs initialization and repair scripts to strictly use the `heart` icon with a `#f7768e` background, enforcing consistency.
+  - Expanded the cover art color palette to include Tokyo Night specific aesthetics (teal `#73daca`, cyan `#2ac3de`, purple `#9d7cd8`) and removed redundant, overly-dark background swatches that blended in.
+
+## 27. Playlist Track Counts
+- **The Upgrade:** Library view previously hardcoded "Playlist" as the subtitle for every playlist card, ignoring actual size.
+- **The Fix:** Updated the `getPlaylists()` query to perform a `LEFT JOIN` on `playlist_tracks` with a `GROUP BY p.id`, accurately computing `COUNT(t.videoId) as trackCount`. The UI now displays accurate metrics (e.g. `12 songs`, `1 song`) directly off the highly performant database fetch.
+
+## 28. Miniplayer Enhancements
+- **The Upgrade:** The `NowPlayingBar` (miniplayer) previously timed out and auto-hid itself after 4 hours of inactivity.
+- **The Fix:** Extended the inactivity `setTimeout` from 4 hours to **24 hours**, ensuring the miniplayer persists reliably across scattered listening sessions throughout the day.

@@ -7,10 +7,12 @@ import { useCallback } from "react";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useHistory } from "@/lib/useHistory";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 
 export default function HomeTab() {
   const router = useRouter();
   const { contentMaxWidth, titleSize, baseSize, spacing } = useResponsive();
+  const { tabBarHeight } = useTabBarHeight();
 
   const { history, fetchHistory, loading } = useHistory();
 
@@ -23,8 +25,8 @@ export default function HomeTab() {
 
   return (
     <View style={style.container}>
-      <ScrollView style={{ flex: 1, width: "100%" }} contentContainerStyle={{ alignItems: "center" }}>
-        <View style={[style.content, { maxWidth: contentMaxWidth, padding: spacing, paddingBottom: 100 }]}>
+      <ScrollView style={{ flex: 1, width: "100%" }} contentContainerStyle={{ alignItems: "center", paddingBottom: tabBarHeight + 20 }}>
+        <View style={[style.content, { maxWidth: contentMaxWidth, padding: spacing }]}>
           <View style={style.topRow}>
             <View style={style.placeholderIcon}>
               <Ionicons name="musical-notes" size={24} color={theme.colors.text.secondary} />
@@ -90,7 +92,6 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   content: {
-    flex: 1,
     width: "100%",
     paddingTop: 48,
   },

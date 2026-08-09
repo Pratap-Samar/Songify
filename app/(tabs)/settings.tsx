@@ -4,10 +4,12 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 
 export default function SettingsTab() {
   const router = useRouter();
   const { contentMaxWidth, spacing, titleSize, baseSize } = useResponsive();
+  const { tabBarHeight } = useTabBarHeight();
 
   const settingsItems = [
     { label: "Playback", icon: "play-circle-outline", action: () => {} },
@@ -17,7 +19,7 @@ export default function SettingsTab() {
   ];
 
   return (
-    <ScrollView style={style.container} contentContainerStyle={[style.content, { padding: spacing, paddingBottom: 100 }]}>
+    <ScrollView style={style.container} contentContainerStyle={[style.content, { padding: spacing, paddingBottom: tabBarHeight + 20 }]}>
       <View style={[style.maxWidthContainer, { maxWidth: contentMaxWidth }]}>
         <Text style={[style.header, { fontSize: titleSize, marginBottom: spacing * 1.5 }]}>Settings</Text>
 

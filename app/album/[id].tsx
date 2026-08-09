@@ -11,6 +11,7 @@ import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useActiveTrack, useShuffleMode } from "@/hooks/usePlaybackState";
 import { getShuffleMode } from "@/lib/track-player";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 
 import { addAlbum, removeAlbum, isAlbumSaved, initDb } from "@/lib/database";
 import { useLikeModal } from "@/lib/LikeModalContext";
@@ -36,6 +37,8 @@ export default function AlbumScreen() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const { openLikeModal, isLiked } = useLikeModal();
+  const { tabBarHeight } = useTabBarHeight();
+  
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace("/");
@@ -258,14 +261,14 @@ export default function AlbumScreen() {
   };
 
   return (
-    <SafeAreaView style={style.container}>
+    <SafeAreaView edges={["top"]} style={style.container}>
       <FlatList
         data={album.tracks}
         keyExtractor={(item, index) => `${item.videoId}-${index}`}
         ListHeaderComponent={renderHeader}
         renderItem={renderTrack}
         style={style.trackList}
-        contentContainerStyle={[style.listContent, { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%" }]}
+        contentContainerStyle={[style.listContent, { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%", paddingBottom: tabBarHeight + 20 }]}
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>

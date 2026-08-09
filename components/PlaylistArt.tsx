@@ -11,25 +11,29 @@ type PlaylistArtProps = {
 };
 
 export default function PlaylistArt({ playlist, size = 44, onEdit }: PlaylistArtProps) {
-  const isCustomArt = !!(playlist.coverEmoji && playlist.coverColor);
+  const hasColor = !!playlist.coverColor;
   const isLiked = playlist.isSystem === 1;
 
-  // The emoji text size should be roughly 45% of the container size
-  const emojiSize = size * 0.45;
+  // The icon size should be roughly 45% of the container size
+  const iconSize = size * 0.45;
   // The edit button size should scale but not be too large
   const editSize = Math.max(16, size * 0.25);
 
+  const iconName = playlist.coverIcon || "musical-notes";
+
   return (
     <View style={[style.container, { width: size, height: size }]}>
-      {isCustomArt ? (
+      {hasColor ? (
         <View style={[style.artWrapper, { backgroundColor: playlist.coverColor! }]}>
-          <Text style={[style.emoji, { fontSize: emojiSize, lineHeight: emojiSize * 1.2 }]}>
-            {playlist.coverEmoji}
-          </Text>
+          <Ionicons 
+            name={iconName as any} 
+            size={iconSize} 
+            color={playlist.coverColor === theme.colors.bg.surface || playlist.coverColor === theme.colors.bg.row ? theme.colors.text.primary : theme.colors.text.onPrimary} 
+          />
         </View>
       ) : (
         <View style={style.placeholderWrapper}>
-          <Ionicons name="musical-notes" size={emojiSize} color={theme.colors.text.secondary} />
+          <Ionicons name={iconName as any} size={iconSize} color={theme.colors.text.secondary} />
         </View>
       )}
 
@@ -61,9 +65,6 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.bg.surface,
     justifyContent: "center",
     alignItems: "center",
-  },
-  emoji: {
-    textAlign: "center",
   },
   editButton: {
     position: "absolute",

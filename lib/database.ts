@@ -21,9 +21,11 @@ export interface Playlist {
   name: string;
   isSystem: number;
   coverEmoji?: string | null;
+  coverIcon?: string | null;
   coverColor?: string | null;
   createdAt: string;
   updatedAt: string;
+  trackCount?: number;
 }
 
 export interface PlaylistTrack {
@@ -294,8 +296,30 @@ export async function initDb() {
       console.log(`[DB] Migration 3 SKIPPED (user_version = ${currentVersion})`);
     }
 
+    if (currentVersion < 4) {
+      console.log("[DB] Migration to v4 START");
+
+      await alterCol("ALTER TABLE playlists ADD COLUMN coverIcon TEXT;");
+
+      // Update Liked Songs system playlist to have the heart icon
+      await alterCol("UPDATE playlists SET coverIcon = 'heart', coverColor = '#f7768e' WHERE isSystem = 1;");
+
+      await database.execAsync("PRAGMA user_version = 4;");
+      const verifyRow = await database.getFirstAsync<{ user_version: number }>("PRAGMA user_version;");
+      console.log(`[DB] Migration 4 DONE — user_version now = ${verifyRow?.user_version}`);
+    } else {
+      console.log(`[DB] Migration 4 SKIPPED (user_version = ${currentVersion})`);
+    }
+
     // Run one-time cleanup for any duplicate "Liked Songs" playlists caused by prior race conditions
     await cleanupDuplicateLikedSongs(database);
+
+    // Repair Liked Songs missing art (in case it was created after migration 4)
+    try {
+      await database.execAsync("UPDATE playlists SET coverIcon = 'heart', coverColor = '#f7768e' WHERE isSystem = 1 AND coverIcon IS NULL;");
+    } catch (e) {
+      console.error("[DB] Failed to repair Liked Songs art:", e);
+    }
 
     console.log("[DB] initDb complete.");
   })();
@@ -316,22 +340,32 @@ export async function getPlaylists(): Promise<Playlist[]> {
   const database = await getDbAsync();
   if (!database) return [];
   return database.getAllAsync<Playlist>(
-    "SELECT id, name, isSystem, coverEmoji, coverColor, createdAt, updatedAt FROM playlists ORDER BY updatedAt DESC;"
+    `SELECT p.id, p.name, p.isSystem, p.coverEmoji, p.coverIcon, p.coverColor, p.createdAt, p.updatedAt, COUNT(t.videoId) as trackCount
+     FROM playlists p
+     LEFT JOIN playlist_tracks t ON p.id = t.playlistId
+     GROUP BY p.id
+     ORDER BY p.updatedAt DESC;`
   );
 }
 
-export async function createPlaylist(name: string, isSystem = 0): Promise<Playlist> {
+export async function createPlaylist(name: string, isSystem = 0, coverIcon: string | null = null, coverColor: string | null = null): Promise<Playlist> {
   const database = await getDbAsync();
   if (!database) throw new Error("Database is not available on this platform.");
-  const result = await database.runAsync("INSERT INTO playlists (name, isSystem) VALUES (?, ?);", [name, isSystem]);
+  const result = await database.runAsync(
+    "INSERT INTO playlists (name, isSystem, coverIcon, coverColor) VALUES (?, ?, ?, ?);", 
+    [name, isSystem, coverIcon, coverColor]
+  );
   const id = result.lastInsertRowId as unknown as number;
   notifyPlaylistsChanged();
   return {
     id,
     name,
     isSystem,
+    coverIcon,
+    coverColor,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    trackCount: 0,
   };
 }
 
@@ -353,12 +387,12 @@ export async function renamePlaylist(id: number, name: string): Promise<void> {
   notifyPlaylistsChanged();
 }
 
-export async function updatePlaylistArt(id: number, coverEmoji: string | null, coverColor: string | null): Promise<void> {
+export async function updatePlaylistArt(id: number, coverIcon: string | null, coverColor: string | null): Promise<void> {
   const database = await getDbAsync();
   if (!database) return;
   await database.runAsync(
-    "UPDATE playlists SET coverEmoji = ?, coverColor = ?, updatedAt = datetime('now') WHERE id = ?;",
-    [coverEmoji, coverColor, id]
+    "UPDATE playlists SET coverIcon = ?, coverColor = ?, updatedAt = datetime('now') WHERE id = ?;",
+    [coverIcon, coverColor, id]
   );
   notifyPlaylistsChanged();
 }
@@ -475,7 +509,7 @@ export function getLikedPlaylistId(): Promise<number> {
       );
       if (row) return row.id;
       // If we got here, it really doesn't exist, create it!
-      const newPlaylist = await createPlaylist("Liked Songs", 1);
+      const newPlaylist = await createPlaylist("Liked Songs", 1, "heart", "#f7768e");
       return newPlaylist.id;
     })().catch((e) => {
       getLikedPlaylistIdPromise = null;

@@ -8,6 +8,7 @@ import { useAlbums } from "@/lib/useAlbums";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import PlaylistArt from "@/components/PlaylistArt";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 
 type FilterType = "playlists" | "albums" | "downloaded";
 
@@ -17,22 +18,8 @@ export default function LibraryTab() {
   const { albums: savedAlbums, loading: albumsLoading, remove: removeAlbum } = useAlbums();
   const [activeFilter, setActiveFilter] = useState<FilterType>("playlists");
   
-  const [isCreating, setIsCreating] = useState(false);
-  const [name, setName] = useState("");
-  
   const { contentMaxWidth, spacing, titleSize, baseSize } = useResponsive();
-
-  const handleCreate = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setIsCreating(false);
-      return;
-    }
-    await create(trimmed);
-    setName("");
-    setIsCreating(false);
-  };
-
+  const { tabBarHeight } = useTabBarHeight();
   return (
     <View style={style.container}>
       {/* 1. Header Row */}
@@ -68,34 +55,16 @@ export default function LibraryTab() {
         </ScrollView>
       </View>
 
-      <ScrollView style={style.listScroll} contentContainerStyle={[style.listContent, { padding: spacing, paddingBottom: 100 }]}>
+      <ScrollView style={style.listScroll} contentContainerStyle={[style.listContent, { padding: spacing, paddingBottom: tabBarHeight + 20 }]}>
         <View style={[style.maxWidthContainer, { maxWidth: contentMaxWidth }]}>
           
-          {/* Creation input if active */}
-          {isCreating && (
-            <View style={[style.inputRow, { marginBottom: spacing }]}>
-              <TextInput
-                style={[style.input, { fontSize: baseSize }]}
-                value={name}
-                onChangeText={setName}
-                placeholder="New playlist name"
-                placeholderTextColor={theme.colors.text.secondary}
-                onSubmitEditing={handleCreate}
-                autoFocus
-              />
-              <TouchableOpacity style={style.createBtn} onPress={handleCreate}>
-                <Ionicons name="checkmark" size={22} color={theme.colors.text.onPrimary} />
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* Unified List Rendering */}
           {activeFilter === "playlists" && (
             <>
               {/* Pinned Create playlist row */}
               <TouchableOpacity
                 style={style.item}
-                onPress={() => setIsCreating(!isCreating)}
+                onPress={() => router.push("/create-playlist")}
                 activeOpacity={0.7}
               >
                 <View style={style.itemLeft}>
@@ -126,7 +95,9 @@ export default function LibraryTab() {
                       </View>
                       <View style={style.itemMeta}>
                         <Text style={[style.itemTitle, { fontSize: baseSize }]}>{item.name}</Text>
-                        <Text style={[style.itemSubtitle, { fontSize: baseSize * 0.85 }]}>Playlist</Text>
+                        <Text style={[style.itemSubtitle, { fontSize: baseSize * 0.85 }]}>
+                          {item.trackCount === 1 ? "1 song" : `${item.trackCount || 0} songs`}
+                        </Text>
                       </View>
                     </View>
                     {!item.isSystem && (
@@ -254,27 +225,7 @@ const style = StyleSheet.create({
   maxWidthContainer: {
     width: "100%",
   },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: theme.colors.bg.row,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 48,
-    color: theme.colors.text.primary,
-  },
-  createBtn: {
-    backgroundColor: theme.colors.accent.primary,
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+
   item: {
     flexDirection: "row",
     alignItems: "center",

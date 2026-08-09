@@ -7,6 +7,7 @@ import { getPlaylistIdsForTrack, addTrackToPlaylist, removeTrackFromPlaylist } f
 import type { Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
 import PlaylistArt from "./PlaylistArt";
+import { useRouter } from "expo-router";
 
 type AddToPlaylistModalProps = {
   visible: boolean;
@@ -16,7 +17,7 @@ type AddToPlaylistModalProps = {
 
 export default function AddToPlaylistModal({ visible, track, onClose }: AddToPlaylistModalProps) {
   const { playlists, create } = usePlaylists();
-  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const router = useRouter();
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -60,18 +61,7 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
     }
   };
 
-  const handleCreate = async () => {
-    const trimmed = newPlaylistName.trim();
-    if (trimmed && track) {
-      const newPlaylist = await create(trimmed);
-      if (newPlaylist) {
-        // Optimistically add the new ID
-        setSelectedPlaylistIds(prev => new Set(prev).add(newPlaylist.id));
-        await addTrackToPlaylist(newPlaylist.id, track);
-        setNewPlaylistName("");
-      }
-    }
-  };
+
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
@@ -90,19 +80,18 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
               </TouchableOpacity>
             </View>
 
-            <View style={style.inputRow}>
-              <TextInput
-                style={style.input}
-                value={newPlaylistName}
-                onChangeText={setNewPlaylistName}
-                placeholder="New playlist name"
-                placeholderTextColor={theme.colors.text.secondary}
-                onSubmitEditing={handleCreate}
-              />
-              <TouchableOpacity style={style.createBtn} onPress={handleCreate}>
-                <Ionicons name="add" size={22} color={theme.colors.text.onPrimary} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity 
+              style={style.createBtnRow} 
+              onPress={() => {
+                onClose();
+                router.push('/create-playlist');
+              }}
+            >
+              <View style={style.createBtnIcon}>
+                <Ionicons name="add" size={24} color={theme.colors.text.primary} />
+              </View>
+              <Text style={style.createBtnText}>New playlist</Text>
+            </TouchableOpacity>
 
             <FlatList
               data={playlists}
@@ -182,30 +171,27 @@ const style = StyleSheet.create({
     fontWeight: "700",
     color: theme.colors.text.primary,
   },
-  inputRow: {
+  createBtnRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
-    gap: 8,
-  },
-  input: {
-    flex: 1,
+    gap: 12,
     backgroundColor: theme.colors.bg.row,
+    padding: 14,
     borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    fontSize: 15,
-    color: theme.colors.text.primary,
-    borderWidth: 1,
-    borderColor: "transparent",
+    marginBottom: 16,
   },
-  createBtn: {
-    backgroundColor: theme.colors.accent.primary,
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  createBtnIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.accent.primary + "40",
     justifyContent: "center",
     alignItems: "center",
+  },
+  createBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: theme.colors.text.primary,
   },
   list: {
     flex: 1,

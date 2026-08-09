@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import PlaylistArt from "./PlaylistArt";
@@ -12,9 +12,41 @@ const COLORS = [
   theme.colors.accent.secondary,
   theme.colors.accent.link,
   theme.colors.accent.premium,
-  theme.colors.bg.surface,
-  theme.colors.bg.row,
+  theme.colors.accent.like,
+  theme.colors.accent.status,
+  theme.colors.text.primary,
+  "#f7768e", // Tokyo Night red
+  "#73daca", // Tokyo Night teal
+  "#2ac3de", // Tokyo Night cyan
+  "#9d7cd8", // Tokyo Night purple
 ];
+
+const ICONS = [
+  "musical-notes",
+  "headset",
+  "radio",
+  "flame",
+  "star",
+  "moon",
+  "sunny",
+  "disc",
+  "car",
+  "cafe",
+  "fitness",
+  "book",
+  "airplane",
+  "boat",
+  "bicycle",
+  "bonfire",
+  "business",
+  "camera",
+  "color-palette",
+  "game-controller",
+  "globe",
+  "heart-outline",
+  "leaf",
+  "paw",
+] as const;
 
 type EditPlaylistArtModalProps = {
   visible: boolean;
@@ -23,14 +55,14 @@ type EditPlaylistArtModalProps = {
 };
 
 export default function EditPlaylistArtModal({ visible, onClose, playlist }: EditPlaylistArtModalProps) {
-  const [emoji, setEmoji] = useState("");
+  const [icon, setIcon] = useState(ICONS[0] as string);
   const [color, setColor] = useState(COLORS[0]);
   const [saving, setSaving] = useState(false);
   const { contentMaxWidth } = useResponsive();
 
   useEffect(() => {
     if (visible && playlist) {
-      setEmoji(playlist.coverEmoji || "");
+      setIcon(playlist.coverIcon || playlist.coverEmoji || ICONS[0]);
       setColor(playlist.coverColor || COLORS[0]);
     }
   }, [visible, playlist]);
@@ -40,7 +72,7 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updatePlaylistArt(playlist.id, emoji || null, color);
+      await updatePlaylistArt(playlist.id, icon, color);
       onClose();
     } catch (e) {
       console.error("[EditPlaylistArtModal] save failed:", e);
@@ -49,20 +81,10 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
     }
   };
 
-  const handleEmojiChange = (text: string) => {
-    // Extract first full grapheme cluster to safely handle complex compound emojis
-    const graphemes = Array.from(text);
-    if (graphemes.length > 0) {
-      setEmoji(graphemes[0]);
-    } else {
-      setEmoji("");
-    }
-  };
-
   // Preview object matching the Playlist interface for the PlaylistArt component
   const previewPlaylist: Playlist = {
     ...playlist,
-    coverEmoji: emoji || null,
+    coverIcon: icon,
     coverColor: color,
   };
 
@@ -86,18 +108,25 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
                 <PlaylistArt playlist={previewPlaylist} size={140} />
               </View>
 
-              <Text style={style.label}>Choose an Emoji</Text>
-              <View style={style.emojiInputContainer}>
-                <TextInput
-                  style={style.emojiInput}
-                  value={emoji}
-                  onChangeText={handleEmojiChange}
-                  placeholder="😀"
-                  placeholderTextColor={theme.colors.text.secondary}
-                  autoCorrect={false}
-                  selectTextOnFocus
-                />
-              </View>
+              <Text style={style.label}>Choose an Icon</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={style.iconScroll} contentContainerStyle={style.iconContainer}>
+                {ICONS.map((i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[
+                      style.iconSwatch,
+                      icon === i && style.iconSwatchSelected,
+                    ]}
+                    onPress={() => setIcon(i)}
+                  >
+                    <Ionicons 
+                      name={i} 
+                      size={28} 
+                      color={icon === i ? theme.colors.text.primary : theme.colors.text.secondary} 
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
 
               <Text style={style.label}>Choose a Color</Text>
               <View style={style.colorGrid}>
@@ -171,18 +200,25 @@ const style = StyleSheet.create({
     marginBottom: 12,
     marginTop: 16,
   },
-  emojiInputContainer: {
-    alignItems: "center",
+  iconScroll: {
     marginBottom: 16,
   },
-  emojiInput: {
-    fontSize: 48,
-    textAlign: "center",
-    width: 80,
-    height: 80,
+  iconContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  iconSwatch: {
+    width: 56,
+    height: 56,
     borderRadius: 12,
     backgroundColor: theme.colors.bg.surface,
-    color: theme.colors.text.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  iconSwatchSelected: {
+    borderColor: theme.colors.text.primary,
   },
   colorGrid: {
     flexDirection: "row",

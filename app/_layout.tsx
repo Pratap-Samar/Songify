@@ -30,6 +30,7 @@ async function requestNotificationPermission() {
 }
 
 import { LikeModalProvider } from "@/lib/LikeModalContext";
+import { TabBarHeightProvider } from "@/lib/TabBarHeightContext";
 import PersistentTabBar from "@/components/PersistentTabBar";
 import { usePathname } from "expo-router";
 
@@ -46,24 +47,32 @@ export default function RootLayout() {
 
   return (
     <LikeModalProvider>
-      <View style={style.root}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: "slide_from_right", // Native iOS style slide for all screens
-          }}
-        >
-          <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
-          <Stack.Screen
-            name="player"
-            options={{
-              presentation: "modal",
-              animation: "slide_from_bottom", // Spotify/Apple Music player slide-up effect
+      <TabBarHeightProvider>
+        <View style={style.root}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "slide_from_right", // Native iOS style slide for all screens
             }}
-          />
-        </Stack>
-        {!pathname.startsWith('/player') && <PersistentTabBar />}
-      </View>
+          >
+            <Stack.Screen
+              name="player"
+              options={{
+                presentation: "modal",
+                animation: "slide_from_bottom", // Spotify/Apple Music player slide-up effect
+              }}
+            />
+            <Stack.Screen
+              name="create-playlist"
+              options={{
+                presentation: "modal",
+                animation: "slide_from_bottom",
+              }}
+            />
+          </Stack>
+          {!pathname.startsWith('/player') && !pathname.startsWith('/create-playlist') && <PersistentTabBar />}
+        </View>
+      </TabBarHeightProvider>
     </LikeModalProvider>
   );
 }

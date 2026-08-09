@@ -12,7 +12,7 @@ export function useHistory() {
     try {
       const { initDb } = await import("./database");
       await initDb();
-      const data = await getHistory(20);
+      const data = await getHistory(15);
       setHistory(data);
     } catch (e) {
       console.error("Error fetching history:", e);

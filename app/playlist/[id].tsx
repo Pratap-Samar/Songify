@@ -10,9 +10,10 @@ import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useActiveTrack, useShuffleMode } from "@/hooks/usePlaybackState";
 import { playCollection } from "@/lib/playback";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 import PlaylistArt from "@/components/PlaylistArt";
 import EditPlaylistArtModal from "@/components/EditPlaylistArtModal";
-import NowPlayingBar from "@/components/NowPlayingBar";
+import TrackPickerList from "@/components/TrackPickerList";
 import { subscribeToPlaylistChanges } from "@/lib/playlistEvents";
 
 function formatDuration(ms: number | null | undefined): string {
@@ -32,8 +33,6 @@ export default function PlaylistDetailScreen() {
   const [playlistTracks, setPlaylistTracks] = useState<PlaylistTrackEntry[]>([]);
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [isEditingArt, setIsEditingArt] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -42,6 +41,7 @@ export default function PlaylistDetailScreen() {
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const shuffleEnabled = useShuffleMode();
   const { track: activeTrack, isPlaying } = useActiveTrack();
+  const { tabBarHeight } = useTabBarHeight();
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -66,19 +66,6 @@ export default function PlaylistDetailScreen() {
     return subscribeToPlaylistChanges(loadTracks);
   }, [loadTracks]);
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (query.trim().length < 3) {
-      setSearchResults([]);
-      return;
-    }
-    try {
-      const results = await searchTracks(query.trim());
-      setSearchResults(results.songs);
-    } catch {
-      setSearchResults([]);
-    }
-  };
 
   const handleAddTrack = async (track: Track) => {
     await addTrack(playlistId, track);
@@ -217,32 +204,10 @@ export default function PlaylistDetailScreen() {
       {/* Add Track Search Section */}
       {showSearch && (
         <View style={style.searchBar}>
-          <TextInput
-            style={style.searchInput}
-            placeholder="Search to add..."
-            placeholderTextColor={theme.colors.text.secondary}
-            value={searchQuery}
-            onChangeText={handleSearch}
-          />
-          <FlatList
-            data={searchResults}
-            keyExtractor={(item) => item.videoId}
-            style={style.searchResults}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={style.searchResultItem}
-                onPress={() => handleAddTrack(item)}
-              >
-                <Text numberOfLines={1} style={style.searchResultTitle}>
-                  {item.title}
-                </Text>
-                <Text style={style.searchResultArtist}>
-                  {item.artists.join(", ")}
-                </Text>
-              </TouchableOpacity>
-            )}
-            scrollEnabled={false}
-          />
+          <TrackPickerList onSelectTrack={(track) => {
+            handleAddTrack(track);
+            setShowSearch(false);
+          }} placeholder="Search to add..." />
         </View>
       )}
     </View>
@@ -319,16 +284,13 @@ export default function PlaylistDetailScreen() {
           <Text style={style.empty}>No tracks in this playlist yet.</Text>
         }
         renderItem={renderTrack}
-        contentContainerStyle={[style.listContent, { paddingBottom: 100 }]}
+        contentContainerStyle={[style.listContent, { paddingBottom: tabBarHeight + 20 }]}
       />
       <EditPlaylistArtModal
         visible={isEditingArt}
         onClose={() => setIsEditingArt(false)}
         playlist={playlist}
       />
-      <View style={[style.miniPlayerContainer, { maxWidth: contentMaxWidth }]}>
-        <NowPlayingBar withSafeArea={true} />
-      </View>
     </View>
   );
 }

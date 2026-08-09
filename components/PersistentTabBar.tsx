@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NowPlayingBar from "@/components/NowPlayingBar";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 
 type TabConfig = {
   name: string;
@@ -24,6 +25,7 @@ export default function PersistentTabBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { contentMaxWidth, baseSize } = useResponsive();
+  const { tabBarHeight, setTabBarHeight } = useTabBarHeight();
 
   const handleTabPress = (path: any) => {
     // If we're already on this tab's root, do nothing
@@ -39,7 +41,17 @@ export default function PersistentTabBar() {
   };
 
   return (
-    <View style={style.wrapper}>
+    <View 
+      style={style.wrapper} 
+      onLayout={(e) => {
+        const newHeight = e.nativeEvent.layout.height;
+        console.log("[PersistentTabBar] onLayout fired. newHeight:", newHeight, "currentHeight:", tabBarHeight);
+        if (Math.abs(newHeight - tabBarHeight) > 1) {
+          console.log("[PersistentTabBar] State update triggered!");
+          setTabBarHeight(newHeight);
+        }
+      }}
+    >
       <View style={[style.content, { maxWidth: contentMaxWidth }]}>
         <NowPlayingBar withSafeArea={false} />
         

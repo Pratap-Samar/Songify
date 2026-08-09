@@ -2,6 +2,7 @@ import { ActivityIndicator, SectionList, StyleSheet, Text, TouchableOpacity, Vie
 import { Image } from "expo-image";
 import type { Track, AlbumSearchItem } from "@/lib/music";
 import { theme } from "@/constants/theme";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 
 type LibraryProps = {
   songs: Track[];
@@ -16,6 +17,7 @@ type LibraryProps = {
 
 export default function Library({ songs, albums = [], isSearching, error, query, onPressSong, onPressAlbum, currentTrackId }: LibraryProps) {
   const showEmptyState = query.length >= 3 && !isSearching && !error && songs.length === 0 && albums.length === 0;
+  const { tabBarHeight } = useTabBarHeight();
 
   const sections = [];
   if (songs.length > 0) {
@@ -79,7 +81,7 @@ export default function Library({ songs, albums = [], isSearching, error, query,
       renderSectionHeader={renderSectionHeader}
       keyExtractor={(item) => ('id' in item ? item.id : item.videoId)}
       style={style.container}
-      contentContainerStyle={sections.length === 0 ? style.emptyContainer : style.listContent}
+      contentContainerStyle={sections.length === 0 ? style.emptyContainer : [style.listContent, { paddingBottom: tabBarHeight + 20 }]}
       ListEmptyComponent={
         isSearching ? (
           <ActivityIndicator size="large" color={theme.colors.accent.primary} />

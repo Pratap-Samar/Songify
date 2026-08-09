@@ -33,13 +33,13 @@ export default function NowPlayingBar({
   const session = usePlaybackSession();
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious } = usePlaybackControls();
 
-  // Inactivity timeout (4 hours)
+  // Inactivity timeout (24 hours)
   const [isVisible, setIsVisible] = useState(true);
   const inactivityTimer = useRef<any>(null);
 
   const resetInactivity = () => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    inactivityTimer.current = setTimeout(() => setIsVisible(false), 4 * 60 * 60 * 1000);
+    inactivityTimer.current = setTimeout(() => setIsVisible(false), 24 * 60 * 60 * 1000);
   };
 
   useEffect(() => {
