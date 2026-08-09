@@ -143,3 +143,9 @@
 ## 28. Miniplayer Enhancements
 - **The Upgrade:** The `NowPlayingBar` (miniplayer) previously timed out and auto-hid itself after 4 hours of inactivity.
 - **The Fix:** Extended the inactivity `setTimeout` from 4 hours to **24 hours**, ensuring the miniplayer persists reliably across scattered listening sessions throughout the day.
+
+## 29. PressableScale & Visual Polish
+- **The Upgrade:** Replaced static `TouchableOpacity` usages across the app with a unified `PressableScale` component to add tactile, spring-based scaling animations (stiffness: 400, damping: 25) upon interaction, giving the app a premium, native feel.
+- **Icon Standardization:** Enforced a solid-by-default icon policy across the app using `Ionicons`, reserving `-outline` variants solely for inactive toggle states. Standardized global icon sizing scales.
+- **Gradient Refinements:** Added subtle `LinearGradient` effects behind Album and Playlist artwork. To maintain a tasteful UI, dynamic color backgrounds use a new HSL-based `darkenHex` utility to deeply dim cover colors rather than producing harsh neon backgrounds.
+- **Playlist Customization Expansion:** Re-expanded the `COLORS` grid for playlist customization, providing 16 distinct options, deliberately resolving repeating cyan/purple values with highly contrasting swatches, and explicitly including pure black and the primary app theme color.

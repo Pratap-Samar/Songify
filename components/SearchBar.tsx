@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { StyleSheet, TextInput, TouchableOpacity, View, Text } from "react-native";
 import { theme } from "@/constants/theme";
@@ -19,11 +19,11 @@ export default function SearchBar(props: SearchBarProps) {
     <View style={style.wrapper}>
       {onBack && (
         <TouchableOpacity onPress={onBack} style={style.backBtn}>
-          <Feather name="arrow-left" size={24} color={theme.colors.text.primary} />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
       )}
       <View style={[style.formContainer, isFocused && style.formContainerFocused]}>
-        <Feather name="search" size={20} color={isFocused ? theme.colors.accent.primary : theme.colors.text.secondary} />
+        <Ionicons name="search" size={20} color={isFocused ? theme.colors.accent.primary : theme.colors.text.muted} />
         <TextInput
           value={form}
           onChangeText={handleChange}
@@ -33,11 +33,11 @@ export default function SearchBar(props: SearchBarProps) {
           returnKeyType="search"
           style={style.input}
           placeholder="Search for songs"
-          placeholderTextColor={theme.colors.text.secondary}
+          placeholderTextColor={theme.colors.text.muted}
         />
         {form.length > 0 && (
           <TouchableOpacity onPress={handleClearSearch}>
-            <Feather name="x" size={20} color={theme.colors.text.secondary} />
+            <Ionicons name="close" size={20} color={theme.colors.text.muted} />
           </TouchableOpacity>
         )}
       </View>
@@ -57,18 +57,16 @@ const style = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: theme.colors.bg.surface,
-    borderRadius: 15,
+    borderRadius: 12,
     height: 50,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: "transparent",
-    // iOS Shadow
+    borderColor: theme.colors.border.default,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    // Android Shadow
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   formContainerFocused: {
     borderColor: theme.colors.accent.primary,

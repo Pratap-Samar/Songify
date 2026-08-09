@@ -3,11 +3,12 @@ export const theme = {
     bg: {
       page: "#1a1b26",
       surface: "#24283b",
-      row: "#22263a",
+      row: "#272b3d",
     },
     text: {
       primary: "#c0caf5",
       secondary: "#7aa2f7",
+      muted: "#6b7394",
       onPrimary: "#4a2c14",
     },
     accent: {
@@ -23,8 +24,8 @@ export const theme = {
       text: "#565f89",
     },
     border: {
-      default: "#2a2e42",
-      strong: "#3a3f5c",
+      default: "#3a3f5c",
+      strong: "#4a5073",
     }
   },
 };

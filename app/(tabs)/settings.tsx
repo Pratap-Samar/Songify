@@ -1,10 +1,11 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import { StyleSheet, Text, View, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
+import { PressableScale } from "@/components/PressableScale";
 
 export default function SettingsTab() {
   const router = useRouter();
@@ -12,10 +13,10 @@ export default function SettingsTab() {
   const { tabBarHeight } = useTabBarHeight();
 
   const settingsItems = [
-    { label: "Playback", icon: "play-circle-outline", action: () => {} },
-    { label: "Appearance", icon: "color-palette-outline", action: () => {} },
-    { label: "Storage", icon: "server-outline", action: () => {} },
-    { label: "About", icon: "information-circle-outline", action: () => router.push("/about") },
+    { label: "Playback", icon: "play-circle", action: () => {} },
+    { label: "Appearance", icon: "color-palette", action: () => {} },
+    { label: "Storage", icon: "server", action: () => {} },
+    { label: "About", icon: "information-circle", action: () => router.push("/about") },
   ];
 
   return (
@@ -25,13 +26,13 @@ export default function SettingsTab() {
 
         <View style={style.list}>
           {settingsItems.map((item, index) => (
-            <TouchableOpacity key={index} style={style.item} onPress={item.action} activeOpacity={0.7}>
+            <PressableScale key={index} style={style.item} onPress={item.action}>
               <View style={style.itemLeft}>
                 <Ionicons name={item.icon as any} size={24} color={theme.colors.text.primary} />
                 <Text style={[style.itemLabel, { fontSize: baseSize }]}>{item.label}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.secondary} />
-            </TouchableOpacity>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.muted} />
+            </PressableScale>
           ))}
         </View>
       </View>
@@ -56,9 +57,16 @@ const style = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   list: {
-    backgroundColor: theme.colors.bg.surface,
-    borderRadius: 16,
+    backgroundColor: theme.colors.bg.row,
+    borderRadius: 12,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   item: {
     flexDirection: "row",
@@ -66,7 +74,7 @@ const style = StyleSheet.create({
     justifyContent: "space-between",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    borderBottomColor: theme.colors.border.default,
   },
   itemLeft: {
     flexDirection: "row",

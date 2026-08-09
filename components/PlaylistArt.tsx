@@ -1,8 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { theme } from "@/constants/theme";
 import type { Playlist } from "@/lib/database";
+import { darkenHex } from "@/lib/colorUtils";
+import { PressableScale } from "./PressableScale";
 
 type PlaylistArtProps = {
   playlist: Playlist;
@@ -20,29 +23,33 @@ export default function PlaylistArt({ playlist, size = 44, onEdit }: PlaylistArt
   const editSize = Math.max(16, size * 0.25);
 
   const iconName = playlist.coverIcon || "musical-notes";
+  const borderRadius = size > 100 ? 16 : 8;
 
   return (
-    <View style={[style.container, { width: size, height: size }]}>
+    <View style={[style.container, { width: size, height: size, borderRadius }]}>
       {hasColor ? (
-        <View style={[style.artWrapper, { backgroundColor: playlist.coverColor! }]}>
+        <LinearGradient 
+          colors={[playlist.coverColor!, darkenHex(playlist.coverColor!, 20)]}
+          style={[style.artWrapper, { borderRadius }]}
+        >
           <Ionicons 
             name={iconName as any} 
             size={iconSize} 
             color={playlist.coverColor === theme.colors.bg.surface || playlist.coverColor === theme.colors.bg.row ? theme.colors.text.primary : theme.colors.text.onPrimary} 
           />
-        </View>
+        </LinearGradient>
       ) : (
-        <View style={style.placeholderWrapper}>
+        <View style={[style.placeholderWrapper, { borderRadius }]}>
           <Ionicons name={iconName as any} size={iconSize} color={theme.colors.text.secondary} />
         </View>
       )}
 
       {onEdit && !isLiked && (
-        <TouchableOpacity style={[style.editButton, { width: editSize + 8, height: editSize + 8 }]} onPress={onEdit}>
+        <PressableScale style={[style.editButton, { width: editSize + 8, height: editSize + 8 }]} onPress={onEdit}>
           <View style={style.editIconBg}>
             <Ionicons name="pencil" size={editSize * 0.7} color={theme.colors.text.primary} />
           </View>
-        </TouchableOpacity>
+        </PressableScale>
       )}
     </View>
   );
@@ -51,17 +58,14 @@ export default function PlaylistArt({ playlist, size = 44, onEdit }: PlaylistArt
 const style = StyleSheet.create({
   container: {
     position: "relative",
-    borderRadius: 6,
   },
   artWrapper: {
     flex: 1,
-    borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
   },
   placeholderWrapper: {
     flex: 1,
-    borderRadius: 6,
     backgroundColor: theme.colors.bg.surface,
     justifyContent: "center",
     alignItems: "center",
@@ -77,10 +81,10 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.bg.page,
     borderRadius: 12,
     padding: 4,
-    elevation: 3,
+    elevation: 4,
     shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
   },
 });

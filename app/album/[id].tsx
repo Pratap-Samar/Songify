@@ -1,28 +1,21 @@
-import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { StyleSheet, View, Text, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { PressableScale } from "@/components/PressableScale";
 import { getAlbum } from "@/lib/api";
 import { playCollection } from "@/lib/playback";
 import type { Album, Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useActiveTrack, useShuffleMode } from "@/hooks/usePlaybackState";
-import { getShuffleMode } from "@/lib/track-player";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
-
 import { addAlbum, removeAlbum, isAlbumSaved, initDb } from "@/lib/database";
 import { useLikeModal } from "@/lib/LikeModalContext";
-
-function formatDuration(ms: number | null | undefined): string {
-  if (!ms) return "0:00";
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
+import { darkenHex } from "@/lib/colorUtils";
 
 export default function AlbumScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,8 +27,8 @@ export default function AlbumScreen() {
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const shuffleEnabled = useShuffleMode();
   const { track: activeTrack, isPlaying } = useActiveTrack();
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [isSaved, setSaved] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const { openLikeModal, isLiked } = useLikeModal();
   const { tabBarHeight } = useTabBarHeight();
   
@@ -65,7 +58,6 @@ export default function AlbumScreen() {
     return () => { mounted = false; };
   }, [id]);
 
-  // Check whether this album is already saved (always await initDb first)
   useEffect(() => {
     if (!album) return;
     let mounted = true;
@@ -81,6 +73,25 @@ export default function AlbumScreen() {
     return () => { mounted = false; };
   }, [album]);
 
+  const handleToggleSave = useCallback(async () => {
+    if (toggling || !album) return;
+    setToggling(true);
+    try {
+      await initDb();
+      if (isSaved) {
+        await removeAlbum(album.id);
+        setSaved(false);
+      } else {
+        await addAlbum(album.id, album.title, album.artists, album.artwork ?? null, album.year ?? null);
+        setSaved(true);
+      }
+    } catch (e) {
+      console.error("[AlbumScreen] toggle saved album failed:", e);
+    } finally {
+      setToggling(false);
+    }
+  }, [album, isSaved, toggling]);
+
   if (loading) {
     return (
       <View style={style.center}>
@@ -91,11 +102,13 @@ export default function AlbumScreen() {
 
   if (error || !album) {
     return (
-      <View style={style.center}>
-        <Text style={style.errorText}>{error || "Album not found"}</Text>
-        <TouchableOpacity style={style.backBtn} onPress={goBack}>
+      <View style={style.errorContainer}>
+        <Ionicons name="alert-circle" size={64} color={theme.colors.text.secondary} />
+        <Text style={style.errorTitle}>Album Not Found</Text>
+        <Text style={style.errorText}>{error || "Could not load the album details."}</Text>
+        <PressableScale style={style.backBtn} onPress={goBack}>
           <Text style={style.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     );
   }
@@ -122,12 +135,11 @@ export default function AlbumScreen() {
     }, router);
   };
 
-
   const renderHeader = () => (
     <View style={style.headerContainer}>
-      <TouchableOpacity style={style.headerBack} onPress={goBack}>
-        <Ionicons name="chevron-back" size={28} color={theme.colors.text.primary} />
-      </TouchableOpacity>
+      <PressableScale style={style.headerBack} onPress={goBack}>
+        <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
+      </PressableScale>
       
       <View style={style.artworkWrapper}>
         {album.artwork ? (
@@ -154,11 +166,16 @@ export default function AlbumScreen() {
       </Text>
 
       <View style={style.controlsRow}>
-        <TouchableOpacity style={style.playButton} onPress={handlePlayAlbum}>
-          <Ionicons name="play" size={24} color={theme.colors.text.onPrimary} />
-          <Text style={style.playButtonText}>Play</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        <PressableScale onPress={handlePlayAlbum}>
+          <LinearGradient
+            colors={[theme.colors.accent.primary, darkenHex(theme.colors.accent.primary, 15)]}
+            style={style.playButton}
+          >
+            <Ionicons name="play" size={24} color={theme.colors.text.onPrimary} />
+            <Text style={style.playButtonText}>Play</Text>
+          </LinearGradient>
+        </PressableScale>
+        <PressableScale
           style={[style.actionButton, shuffleEnabled && { borderColor: theme.colors.accent.primary }]}
           onPress={async () => {
             const { toggleShuffleMode } = await import('@/lib/track-player');
@@ -166,52 +183,35 @@ export default function AlbumScreen() {
           }}
         >
           <Ionicons name="shuffle" size={24} color={shuffleEnabled ? theme.colors.accent.primary : theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity
+        </PressableScale>
+        <PressableScale
           style={style.actionButton}
-          onPress={async () => {
-            if (saving || !album) return;
-            setSaving(true);
-            try {
-              await initDb();
-              if (saved) {
-                await removeAlbum(album.id);
-                setSaved(false);
-              } else {
-                await addAlbum(
-                  album.id,
-                  album.title,
-                  album.artists,
-                  album.artwork ?? null,
-                  album.year ?? null
-                );
-                setSaved(true);
-              }
-            } catch (e) {
-              console.error("[AlbumScreen] add/remove album failed:", e);
-            } finally {
-              setSaving(false);
-            }
-          }}
-          disabled={saving}
+          onPress={handleToggleSave}
+          disabled={toggling}
         >
-          <Ionicons
-            name={saved ? "checkmark-circle" : "add"}
-            size={24}
-            color={saved ? theme.colors.accent.status : theme.colors.text.secondary}
-          />
-        </TouchableOpacity>
+          {toggling ? (
+            <ActivityIndicator size="small" color={theme.colors.text.primary} />
+          ) : (
+            <Ionicons 
+              name={isSaved ? "heart" : "heart-outline"} 
+              size={24} 
+              color={isSaved ? theme.colors.accent.like : theme.colors.text.secondary} 
+              style={isSaved ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
+            />
+          )}
+        </PressableScale>
       </View>
     </View>
   );
 
   const TrackRowItem = ({ item, index, isCurrentlyPlaying, isPlaying, handlePlayTrack }: any) => {
     const liked = isLiked(item.videoId);
+    const isPlayingThis = isCurrentlyPlaying && isPlaying;
 
     return (
-      <TouchableOpacity style={style.trackRow} onPress={() => handlePlayTrack(index)}>
+      <PressableScale style={style.trackRow} onPress={() => handlePlayTrack(index)}>
         <View style={style.trackNumberContainer}>
-          {isCurrentlyPlaying && isPlaying ? (
+          {isPlayingThis ? (
             <Ionicons name="stats-chart" size={16} color={theme.colors.accent.status} />
           ) : (
             <Text style={[style.trackNumber, isCurrentlyPlaying && style.trackNumberPlaying]}>
@@ -229,21 +229,18 @@ export default function AlbumScreen() {
           </Text>
         </View>
         
-        <Text style={style.trackDuration}>
-          {formatDuration(item.durationMs)}
-        </Text>
-        
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity style={style.downloadBtn} onPress={() => openLikeModal(item)}>
+          <Text style={style.trackDuration}>{item.duration}</Text>
+          <PressableScale style={style.downloadBtn} onPress={() => openLikeModal(item)}>
             <Ionicons 
               name={liked ? "heart" : "heart-outline"} 
-              size={24} 
+              size={22} 
               color={liked ? theme.colors.accent.like : theme.colors.text.secondary} 
               style={liked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
             />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
-      </TouchableOpacity>
+      </PressableScale>
     );
   };
 
@@ -286,6 +283,20 @@ const style = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.bg.page,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  errorTitle: {
+    color: theme.colors.text.primary,
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 16,
+    marginBottom: 8,
+  },
   errorText: {
     color: theme.colors.text.primary,
     fontSize: 16,
@@ -303,6 +314,7 @@ const style = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 16,
+    paddingHorizontal: 16,
   },
   trackList: {
     flex: 1,
@@ -331,24 +343,24 @@ const style = StyleSheet.create({
   artworkWrapper: {
     width: 200,
     height: 200,
-    borderRadius: 12,
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
     marginBottom: 24,
     backgroundColor: theme.colors.bg.surface,
   },
   artwork: {
     width: "100%",
     height: "100%",
-    borderRadius: 12,
+    borderRadius: 16,
   },
   artworkPlaceholder: {
     width: "100%",
     height: "100%",
-    borderRadius: 12,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -364,7 +376,7 @@ const style = StyleSheet.create({
     marginBottom: 8,
   },
   metadata: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     marginBottom: 24,
   },
   controlsRow: {
@@ -393,6 +405,8 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.bg.surface,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
   },
   actionButtonDisabled: {
     backgroundColor: theme.colors.disabled.bg,
@@ -403,15 +417,22 @@ const style = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: theme.colors.bg.row,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border.default,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    marginBottom: 8,
   },
   trackNumberContainer: {
     width: 32,
     alignItems: "center",
   },
   trackNumber: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     fontSize: 14,
   },
   trackNumberPlaying: {
@@ -433,11 +454,11 @@ const style = StyleSheet.create({
     color: theme.colors.accent.primary,
   },
   trackArtist: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     fontSize: 13,
   },
   trackDuration: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     fontSize: 13,
     marginRight: 12,
   },

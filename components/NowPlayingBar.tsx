@@ -1,5 +1,6 @@
-import { StyleSheet, Text, TouchableOpacity, View, GestureResponderEvent, AppState } from "react-native";
+import { StyleSheet, Text, View, GestureResponderEvent, AppState } from "react-native";
 import { useState, useEffect, useRef } from "react";
+import { PressableScale } from "./PressableScale";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -84,7 +85,7 @@ export default function NowPlayingBar({
 
   return (
     <View style={[style.container, withSafeArea && { paddingBottom: insets.bottom }]}>
-      <TouchableOpacity style={style.bar} onPress={handleBarPress} activeOpacity={0.85}>
+      <PressableScale style={style.bar} onPress={handleBarPress}>
         <View style={style.left}>
           {track.thumbnailUrl && (
             <Image source={{ uri: track.thumbnailUrl }} style={style.thumbnail} cachePolicy="disk" contentFit="cover" transition={150} />
@@ -97,26 +98,26 @@ export default function NowPlayingBar({
               {(track.artists ?? []).join(", ") || ""}
             </Text>
             {session?.source === "album" && session.collectionTitle && (
-              <TouchableOpacity onPress={handleCollectionPress}>
+              <PressableScale onPress={handleCollectionPress}>
                 <Text numberOfLines={1} style={style.collectionTitle}>
                   {session.collectionTitle}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             )}
           </View>
         </View>
         <View style={style.right}>
-          <TouchableOpacity onPress={(e) => handleAction(e, skipToPrevious)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <PressableScale onPress={(e) => handleAction(e, skipToPrevious)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="play-skip-back" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => handleAction(e, togglePlayPause)} style={style.playButton} hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}>
+          </PressableScale>
+          <PressableScale onPress={(e) => handleAction(e, togglePlayPause)} style={style.playButton} hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}>
             <Ionicons name={isPlaying ? "pause" : "play"} size={28} color={theme.colors.accent.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => handleAction(e, skipToNext)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          </PressableScale>
+          <PressableScale onPress={(e) => handleAction(e, skipToNext)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="play-skip-forward" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
-      </TouchableOpacity>
+      </PressableScale>
       
       {/* Thin progress bar at the bottom */}
       <ProgressBar />
@@ -128,7 +129,12 @@ const style = StyleSheet.create({
   container: {
     backgroundColor: theme.colors.bg.surface,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.05)",
+    borderTopColor: theme.colors.border.default,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   progressTrack: {
     height: 2,
@@ -155,7 +161,7 @@ const style = StyleSheet.create({
   thumbnail: {
     width: 48,
     height: 48,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   textContainer: {
     marginLeft: 12,
@@ -168,7 +174,7 @@ const style = StyleSheet.create({
     fontWeight: "600",
   },
   artist: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     fontSize: 12,
     marginTop: 2,
   },

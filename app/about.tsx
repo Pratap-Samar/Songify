@@ -1,9 +1,10 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
+import { PressableScale } from "@/components/PressableScale";
 
 export default function AboutScreen() {
   const router = useRouter();
@@ -16,9 +17,9 @@ export default function AboutScreen() {
   return (
     <View style={style.container}>
       <View style={[style.headerRow, { paddingHorizontal: spacing, paddingTop: 48, paddingBottom: spacing }]}>
-        <TouchableOpacity onPress={goBack} style={style.backBtn}>
+        <PressableScale onPress={goBack} style={style.backBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
-        </TouchableOpacity>
+        </PressableScale>
         <Text style={[style.headerTitle, { fontSize: titleSize }]}>About</Text>
       </View>
 

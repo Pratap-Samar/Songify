@@ -1,6 +1,9 @@
-import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { PressableScale } from "./PressableScale";
+import { hexToRgba } from "@/lib/colorUtils";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
@@ -93,19 +96,23 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
 
   // ── Render ──────────────────────────────────────────────────────
   return (
-    <View style={style.container}>
+    <LinearGradient 
+      colors={[hexToRgba(theme.colors.accent.primary, 0.15), theme.colors.bg.page, theme.colors.bg.page]}
+      locations={[0, 0.4, 1]}
+      style={style.container}
+    >
       <View style={[style.header, isCompact && { paddingTop: 24, paddingBottom: 8 }]}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={style.iconButton}>
+        <PressableScale onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={style.iconButton}>
           <Ionicons name="chevron-down" size={32} color={theme.colors.text.primary} />
-        </TouchableOpacity>
+        </PressableScale>
         <View style={style.headerCenter}>
           <Text style={style.headerTitle}>Now Playing</Text>
           {session?.source === "album" && session.collectionId && session.collectionTitle && (
-            <TouchableOpacity onPress={() => router.push(`/album/${session.collectionId}`)}>
+            <PressableScale onPress={() => router.push(`/album/${session.collectionId}`)}>
               <Text numberOfLines={1} style={[style.headerCollectionTitle, { color: theme.colors.accent.link }]}>
                 {session.collectionTitle}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           )}
         </View>
         <View style={{ width: 32 }} />
@@ -116,12 +123,12 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
             <Ionicons name="alert-circle" size={48} color={theme.colors.text.secondary} />
             <Text style={style.errorTitle}>Could not load track</Text>
             <Text style={style.errorMessage}>{error}</Text>
-            <TouchableOpacity
+            <PressableScale
               style={style.retryBtn}
               onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
             >
               <Text style={style.retryBtnText}>Go back</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         ) : (
           <View style={style.playerLayout}>
@@ -147,7 +154,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <TouchableOpacity
+                  <PressableScale
                     style={style.downloadBtn}
                     onPress={() => {
                       if (downloadState === 'none') {
@@ -156,18 +163,20 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                         setTimeout(() => setDownloadState('downloaded'), 1500);
                       }
                     }}
-                    activeOpacity={0.7}
                   >
                     {downloadState === 'downloading' ? (
                       <ActivityIndicator size="small" color={theme.colors.text.primary} />
                     ) : (
                       <Ionicons 
-                        name={downloadState === 'downloaded' ? 'checkmark-circle' : 'download-outline'} 
+                        name={downloadState === 'downloaded' ? 'checkmark-circle' : 'download'} 
                         size={26} 
-                        color={downloadState === 'downloaded' ? theme.colors.accent.status : theme.colors.accent.link} 
+                        color={downloadState === 'downloaded' ? theme.colors.accent.status : theme.colors.text.primary} 
                       />
                     )}
-                  </TouchableOpacity>
+                  </PressableScale>
+                  <PressableScale style={style.downloadBtn} onPress={() => { /* options */ }}>
+                    <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text.primary} />
+                  </PressableScale>
                 </View>
               </View>
 
@@ -195,7 +204,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
               </View>
 
               <View style={[style.controls, isCompact && { marginTop: 24, marginBottom: 16 }]}>
-                <TouchableOpacity onPress={toggleRepeatMode} style={style.secondaryBtn}>
+                <PressableScale onPress={toggleRepeatMode} style={style.secondaryBtn}>
                   <Ionicons 
                     name="repeat" 
                     size={28} 
@@ -209,39 +218,39 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   />
                   {repeatMode === 'track' && <Text style={[style.repeatOneBadge, { color: theme.colors.accent.like }]}>1</Text>}
                   {repeatMode !== 'off' && <View style={[style.repeatDot, { backgroundColor: theme.colors.accent.like }]} />}
-                </TouchableOpacity>
+                </PressableScale>
                 
-                <TouchableOpacity onPress={skipToPrevious}>
+                <PressableScale onPress={skipToPrevious}>
                   <Ionicons name="play-skip-back" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
-                </TouchableOpacity>
+                </PressableScale>
                 
-                <TouchableOpacity onPress={togglePlayPause} style={[style.playBtn, isCompact && { width: 64, height: 64, borderRadius: 32 }]}>
+                <PressableScale onPress={togglePlayPause} style={[style.playBtn, isCompact && { width: 64, height: 64, borderRadius: 32 }]}>
                   <Ionicons
                     name={isPlaying ? "pause" : "play"}
                     size={isCompact ? 36 : 42}
                     color={theme.colors.text.onPrimary}
                     style={{ marginLeft: isPlaying ? 0 : 4 }}
                   />
-                </TouchableOpacity>
+                </PressableScale>
                 
-                <TouchableOpacity onPress={skipToNext}>
+                <PressableScale onPress={skipToNext}>
                   <Ionicons name="play-skip-forward" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
-                </TouchableOpacity>
+                </PressableScale>
                 
-                <TouchableOpacity onPress={() => track && openLikeModal(track)} style={style.secondaryBtn}>
+                <PressableScale onPress={() => track && openLikeModal(track)} style={style.secondaryBtn}>
                   <Ionicons 
                     name={liked ? "heart" : "heart-outline"} 
                     size={28} 
                     color={liked ? theme.colors.accent.like : theme.colors.text.secondary} 
                     style={liked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
                   />
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             </View>
           </View>
         )}
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -291,17 +300,17 @@ const style = StyleSheet.create({
   },
   artworkShadowContainer: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.8,
-    shadowRadius: 24,
-    elevation: 20,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
     backgroundColor: theme.colors.bg.surface,
     borderRadius: 16,
   },
   artworkWrapper: {
     padding: 0,
     borderRadius: 16,
-    borderWidth: 4,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   artwork: {
@@ -339,7 +348,7 @@ const style = StyleSheet.create({
     marginBottom: 6,
   },
   artist: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     fontSize: 18,
     fontWeight: "500",
   },
@@ -386,7 +395,7 @@ const style = StyleSheet.create({
     marginTop: 8,
   },
   timeText: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     fontSize: 12,
     fontVariant: ["tabular-nums"],
   },
@@ -440,7 +449,7 @@ const style = StyleSheet.create({
     marginTop: 16,
   },
   errorMessage: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     fontSize: 14,
     marginTop: 8,
     textAlign: "center",

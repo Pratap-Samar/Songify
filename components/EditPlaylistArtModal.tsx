@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { Modal, View, Text, StyleSheet, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import PlaylistArt from "./PlaylistArt";
 import type { Playlist } from "@/lib/database";
 import { updatePlaylistArt } from "@/lib/database";
 import { useResponsive } from "@/lib/useResponsive";
+import { PressableScale } from "./PressableScale";
 
 const COLORS = [
   theme.colors.accent.primary,
@@ -16,9 +17,14 @@ const COLORS = [
   theme.colors.accent.status,
   theme.colors.text.primary,
   "#f7768e", // Tokyo Night red
-  "#73daca", // Tokyo Night teal
-  "#2ac3de", // Tokyo Night cyan
-  "#9d7cd8", // Tokyo Night purple
+  "#000000", // Black
+  theme.colors.bg.row, // Background
+  "#ff8c00", // Dark Orange
+  "#ff1493", // Deep Pink
+  "#00fa9a", // Medium Spring Green
+  "#1e90ff", // Dodger Blue
+  "#8a2be2", // Blue Violet
+  "#ffffff", // White
 ];
 
 const ICONS = [
@@ -99,9 +105,9 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
             >
               <View style={style.header}>
                 <Text style={style.title}>Edit Playlist Art</Text>
-                <TouchableOpacity onPress={onClose} style={style.closeBtn}>
+                <PressableScale onPress={onClose} style={style.closeBtn}>
                   <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
-                </TouchableOpacity>
+                </PressableScale>
               </View>
 
               <View style={style.previewContainer}>
@@ -111,7 +117,7 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
               <Text style={style.label}>Choose an Icon</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={style.iconScroll} contentContainerStyle={style.iconContainer}>
                 {ICONS.map((i) => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={i}
                     style={[
                       style.iconSwatch,
@@ -120,18 +126,18 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
                     onPress={() => setIcon(i)}
                   >
                     <Ionicons 
-                      name={i} 
+                      name={i as any} 
                       size={28} 
                       color={icon === i ? theme.colors.text.primary : theme.colors.text.secondary} 
                     />
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </ScrollView>
 
               <Text style={style.label}>Choose a Color</Text>
               <View style={style.colorGrid}>
                 {COLORS.map((c) => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={c}
                     style={[
                       style.colorSwatch,
@@ -147,13 +153,13 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
                         color={c === theme.colors.bg.surface || c === theme.colors.bg.row ? theme.colors.text.primary : theme.colors.text.onPrimary} 
                       />
                     )}
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
 
-              <TouchableOpacity style={style.saveButton} onPress={handleSave} disabled={saving}>
+              <PressableScale style={style.saveButton} onPress={handleSave} disabled={saving}>
                 <Text style={style.saveButtonText}>{saving ? "Saving..." : "Save"}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </KeyboardAvoidingView>
           </TouchableWithoutFeedback>
         </View>

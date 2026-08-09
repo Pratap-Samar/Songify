@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -9,6 +9,7 @@ import { createPlaylist } from "@/lib/database";
 import { usePlaylists } from "@/lib/usePlaylists";
 import PlaylistArt from "@/components/PlaylistArt";
 import TrackPickerList from "@/components/TrackPickerList";
+import { PressableScale } from "@/components/PressableScale";
 import type { Track } from "@/lib/music";
 
 const COLORS = [
@@ -20,9 +21,14 @@ const COLORS = [
   theme.colors.accent.status,
   theme.colors.text.primary,
   "#f7768e", // Tokyo Night red
-  "#73daca", // Tokyo Night teal
-  "#2ac3de", // Tokyo Night cyan
-  "#9d7cd8", // Tokyo Night purple
+  "#000000", // Black
+  theme.colors.bg.row, // Background
+  "#ff8c00", // Dark Orange
+  "#ff1493", // Deep Pink
+  "#00fa9a", // Medium Spring Green
+  "#1e90ff", // Dodger Blue
+  "#8a2be2", // Blue Violet
+  "#ffffff", // White
 ];
 
 const ICONS = [
@@ -109,11 +115,11 @@ export default function CreatePlaylistScreen() {
         style={styles.keyboardView}
       >
         <View style={[styles.header, { maxWidth: contentMaxWidth }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+          <PressableScale onPress={() => router.back()} style={styles.headerBtn}>
             <Text style={styles.headerBtnTextCancel}>Cancel</Text>
-          </TouchableOpacity>
+          </PressableScale>
           <Text style={styles.title}>New Playlist</Text>
-          <TouchableOpacity 
+          <PressableScale 
             onPress={handleCreate} 
             style={[styles.headerBtn, !name.trim() && styles.headerBtnDisabled]}
             disabled={!name.trim() || saving}
@@ -121,7 +127,7 @@ export default function CreatePlaylistScreen() {
             <Text style={[styles.headerBtnTextSave, !name.trim() && styles.headerBtnTextDisabled]}>
               {saving ? "Creating..." : "Create"}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { maxWidth: contentMaxWidth }]}>
@@ -144,7 +150,7 @@ export default function CreatePlaylistScreen() {
           <Text style={styles.label}>Choose an Icon</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconScroll} contentContainerStyle={styles.iconContainer}>
             {ICONS.map((i) => (
-              <TouchableOpacity
+              <PressableScale
                 key={i}
                 style={[
                   styles.iconSwatch,
@@ -153,18 +159,18 @@ export default function CreatePlaylistScreen() {
                 onPress={() => setIcon(i)}
               >
                 <Ionicons 
-                  name={i} 
+                  name={i as any} 
                   size={28} 
                   color={icon === i ? theme.colors.text.primary : theme.colors.text.secondary} 
                 />
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </ScrollView>
 
           <Text style={styles.label}>Choose a Color</Text>
           <View style={styles.colorGrid}>
             {COLORS.map((c) => (
-              <TouchableOpacity
+              <PressableScale
                 key={c}
                 style={[
                   styles.colorSwatch,
@@ -180,7 +186,7 @@ export default function CreatePlaylistScreen() {
                     color={c === theme.colors.bg.surface || c === theme.colors.bg.row ? theme.colors.text.primary : theme.colors.text.onPrimary} 
                   />
                 )}
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 
@@ -195,9 +201,9 @@ export default function CreatePlaylistScreen() {
                       <Text style={styles.selectedTrackTitle} numberOfLines={1}>{track.title}</Text>
                       <Text style={styles.selectedTrackArtist} numberOfLines={1}>{track.artists.join(", ")}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => handleRemoveTrack(track.videoId)} style={styles.removeBtn}>
+                    <PressableScale onPress={() => handleRemoveTrack(track.videoId)} style={styles.removeBtn}>
                       <Ionicons name="remove-circle" size={24} color={theme.colors.accent.primary} />
-                    </TouchableOpacity>
+                    </PressableScale>
                   </View>
                 ))}
               </View>

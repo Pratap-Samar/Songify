@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView } from "react-native";
+import { StyleSheet, Text, TextInput, View, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -9,6 +9,7 @@ import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import PlaylistArt from "@/components/PlaylistArt";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
+import { PressableScale } from "@/components/PressableScale";
 
 type FilterType = "playlists" | "albums" | "downloaded";
 
@@ -28,9 +29,9 @@ export default function LibraryTab() {
           <Text style={[style.headerTitle, { fontSize: titleSize }]}>Your Library</Text>
         </View>
         <View style={style.headerRight}>
-          <TouchableOpacity style={style.iconBtn} onPress={() => router.push("/search")}>
+          <PressableScale style={style.iconBtn} onPress={() => router.push("/search")}>
             <Ionicons name="search" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
 
@@ -40,16 +41,15 @@ export default function LibraryTab() {
           {(["playlists", "albums", "downloaded"] as FilterType[]).map((filter) => {
             const isActive = activeFilter === filter;
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={filter}
                 style={[style.chip, isActive && style.chipActive]}
                 onPress={() => setActiveFilter(filter)}
-                activeOpacity={0.8}
               >
                 <Text style={[style.chipText, { fontSize: baseSize * 0.9 }, isActive && style.chipTextActive]}>
                   {filter.charAt(0).toUpperCase() + filter.slice(1)}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </ScrollView>
@@ -62,10 +62,9 @@ export default function LibraryTab() {
           {activeFilter === "playlists" && (
             <>
               {/* Pinned Create playlist row */}
-              <TouchableOpacity
+              <PressableScale
                 style={style.item}
                 onPress={() => router.push("/create-playlist")}
-                activeOpacity={0.7}
               >
                 <View style={style.itemLeft}>
                   <View style={style.thumbnail}>
@@ -75,7 +74,7 @@ export default function LibraryTab() {
                     <Text style={[style.itemTitle, { fontSize: baseSize }]}>Create playlist</Text>
                   </View>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
 
               {loading ? (
                 <Text style={[style.empty, { fontSize: baseSize }]}>Loading playlists...</Text>
@@ -83,11 +82,10 @@ export default function LibraryTab() {
                 <Text style={[style.empty, { fontSize: baseSize }]}>No playlists yet — tap above to create your first one.</Text>
               ) : (
                 playlists.map((item) => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={item.id}
                     style={style.item}
                     onPress={() => router.push(`/playlist/${item.id}`)}
-                    activeOpacity={0.7}
                   >
                     <View style={style.itemLeft}>
                       <View style={style.thumbnail}>
@@ -101,11 +99,11 @@ export default function LibraryTab() {
                       </View>
                     </View>
                     {!item.isSystem && (
-                      <TouchableOpacity onPress={() => remove(item.id)} style={style.deleteBtn}>
-                        <Ionicons name="trash-outline" size={18} color={theme.colors.text.secondary} />
-                      </TouchableOpacity>
+                      <PressableScale onPress={() => remove(item.id)} style={style.deleteBtn}>
+                        <Ionicons name="trash" size={18} color={theme.colors.text.secondary} />
+                      </PressableScale>
                     )}
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))
               )}
             </>
@@ -121,11 +119,10 @@ export default function LibraryTab() {
                 savedAlbums.map((album) => {
                   const artists = (() => { try { return JSON.parse(album.artists) as string[]; } catch { return [album.artists]; } })();
                   return (
-                    <TouchableOpacity
+                    <PressableScale
                       key={album.id}
                       style={style.item}
                       onPress={() => router.push(`/album/${album.id}`)}
-                      activeOpacity={0.7}
                     >
                       <View style={style.itemLeft}>
                         <View style={style.thumbnail}>
@@ -147,10 +144,10 @@ export default function LibraryTab() {
                           </Text>
                         </View>
                       </View>
-                      <TouchableOpacity onPress={() => removeAlbum(album.id)} style={style.deleteBtn}>
+                      <PressableScale onPress={() => removeAlbum(album.id)} style={style.deleteBtn}>
                         <Ionicons name="checkmark-circle" size={24} color={theme.colors.accent.primary} />
-                      </TouchableOpacity>
-                    </TouchableOpacity>
+                      </PressableScale>
+                    </PressableScale>
                   );
                 })
               )}
@@ -230,8 +227,17 @@ const style = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 8,
-    marginBottom: 8,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: theme.colors.bg.row,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   itemLeft: {
     flexDirection: "row",
@@ -243,7 +249,7 @@ const style = StyleSheet.create({
     width: 64,
     height: 64,
     backgroundColor: theme.colors.bg.row,
-    borderRadius: 4,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
@@ -251,7 +257,7 @@ const style = StyleSheet.create({
   thumbnailImg: {
     width: "100%",
     height: "100%",
-    borderRadius: 4,
+    borderRadius: 8,
   },
   itemMeta: {
     flex: 1,
@@ -263,13 +269,13 @@ const style = StyleSheet.create({
     marginBottom: 4,
   },
   itemSubtitle: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
   },
   deleteBtn: {
     padding: 8,
   },
   empty: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     marginTop: 24,
   },
 });

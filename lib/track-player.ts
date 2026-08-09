@@ -55,8 +55,8 @@ export async function toggleShuffleMode() {
     }
 
     const tracksToShuffle = origIdx !== -1 
-      ? currentSession.queue.slice(origIdx + 1).map(mapTrack as any)
-      : currentSession.queue.map(mapTrack as any);
+      ? currentSession.queue.slice(origIdx + 1).map(t => mapTrack(t as any))
+      : currentSession.queue.map(t => mapTrack(t as any));
       
     for (let i = tracksToShuffle.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -71,12 +71,12 @@ export async function toggleShuffleMode() {
         await TrackPlayer.remove(indexesToRemove);
       }
 
-      const after = currentSession.queue.slice(origIdx + 1).map(mapTrack as any);
+      const after = currentSession.queue.slice(origIdx + 1).map(t => mapTrack(t as any));
       if (after.length > 0) {
         await TrackPlayer.add(after);
       }
 
-      const before = currentSession.queue.slice(0, origIdx).map(mapTrack as any);
+      const before = currentSession.queue.slice(0, origIdx).map(t => mapTrack(t as any));
       if (before.length > 0) {
         // Insert tracks before the current track at index 0
         await TrackPlayer.add(before, 0);

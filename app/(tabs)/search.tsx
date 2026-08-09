@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { PressableScale } from "@/components/PressableScale";
 import { searchTracks } from "@/lib/api";
 import type { Track, AlbumSearchItem } from "@/lib/music";
 import Library from "@/components/Library";
@@ -137,16 +138,15 @@ export default function SearchTab() {
           {(["songs", "albums", "videos"] as const).map((filter) => {
             const isActive = activeFilter === filter;
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={filter}
                 style={[style.filterChip, isActive && style.filterChipActive]}
                 onPress={() => setActiveFilter(filter)}
-                activeOpacity={0.8}
               >
                 <Text style={[style.filterText, isActive && style.filterTextActive]}>
                   {filter.charAt(0).toUpperCase() + filter.slice(1)}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </View>
@@ -187,9 +187,12 @@ const style = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 20,
     backgroundColor: theme.colors.bg.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
   },
   filterChipActive: {
     backgroundColor: theme.colors.accent.primary,
+    borderColor: theme.colors.accent.primary,
   },
   filterText: {
     color: theme.colors.text.primary,

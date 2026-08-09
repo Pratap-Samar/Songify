@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList, KeyboardAvoidingView, Platform, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { usePlaylists } from "@/lib/usePlaylists";
@@ -8,6 +8,7 @@ import type { Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
 import PlaylistArt from "./PlaylistArt";
 import { useRouter } from "expo-router";
+import { PressableScale } from "./PressableScale";
 
 type AddToPlaylistModalProps = {
   visible: boolean;
@@ -69,18 +70,18 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
         style={style.modalOverlay}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <TouchableOpacity style={style.modalDismiss} activeOpacity={1} onPress={onClose} />
+        <Pressable style={style.modalDismiss} onPress={onClose} />
         
         <View style={style.modalContent}>
           <LinearGradient colors={[theme.colors.bg.surface, theme.colors.bg.page]} style={style.gradientBg}>
             <View style={style.header}>
               <Text style={style.title}>Add to Playlist</Text>
-              <TouchableOpacity onPress={onClose}>
+              <PressableScale onPress={onClose}>
                 <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
 
-            <TouchableOpacity 
+            <PressableScale 
               style={style.createBtnRow} 
               onPress={() => {
                 onClose();
@@ -91,7 +92,7 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
                 <Ionicons name="add" size={24} color={theme.colors.text.primary} />
               </View>
               <Text style={style.createBtnText}>New playlist</Text>
-            </TouchableOpacity>
+            </PressableScale>
 
             <FlatList
               data={playlists}
@@ -103,10 +104,9 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
                 const isLikedSongs = item.isSystem === 1 && item.name === "Liked Songs";
 
                 return (
-                  <TouchableOpacity
+                  <PressableScale
                     style={[style.item, isSelected && style.itemSelected]}
                     onPress={() => togglePlaylist(item.id)}
-                    activeOpacity={0.7}
                   >
                     {isLikedSongs ? (
                       <Ionicons 
@@ -125,7 +125,7 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
                     <Text style={[style.itemTitle, isSelected && style.itemTitleSelected]}>
                       {item.name}
                     </Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               }}
             />
@@ -179,6 +179,13 @@ const style = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   createBtnIcon: {
     width: 36,
@@ -205,7 +212,12 @@ const style = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: theme.colors.border.default,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   itemSelected: {
     borderColor: theme.colors.accent.primary + "40",
@@ -221,7 +233,7 @@ const style = StyleSheet.create({
   },
   empty: {
     textAlign: "center",
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
     marginTop: 40,
     fontSize: 15,
   },

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, StyleProp, ViewStyle } from "react-native";
+import { View, Text, TextInput, FlatList, StyleSheet, StyleProp, ViewStyle } from "react-native";
 import { searchTracks } from "@/lib/api";
 import type { Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
+import { PressableScale } from "./PressableScale";
 
 interface TrackPickerListProps {
   onSelectTrack: (track: Track) => void;
@@ -42,7 +43,7 @@ export default function TrackPickerList({ onSelectTrack, style, placeholder = "S
         keyExtractor={(item) => item.videoId}
         style={styles.searchResults}
         renderItem={({ item }) => (
-          <TouchableOpacity
+          <PressableScale
             style={styles.searchResultItem}
             onPress={() => onSelectTrack(item)}
           >
@@ -52,7 +53,7 @@ export default function TrackPickerList({ onSelectTrack, style, placeholder = "S
             <Text style={styles.searchResultArtist}>
               {item.artists.join(", ")}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
         scrollEnabled={false}
       />
