@@ -592,7 +592,18 @@ export async function addToHistory(track: Track): Promise<void> {
      ON CONFLICT(videoId) DO UPDATE SET lastPlayedAt = datetime('now');`,
     ...params
   );
-  logger.debug(`[Database] addToHistory: Completed for "${track.title}". Notifying listeners.`);
+  
+  // Prune history to keep only the 20 most recent tracks
+  await database.runAsync(`
+    DELETE FROM recent_plays 
+    WHERE videoId NOT IN (
+      SELECT videoId FROM recent_plays 
+      ORDER BY lastPlayedAt DESC 
+      LIMIT 20
+    );
+  `);
+  
+  logger.debug(`[Database] addToHistory: Completed for "${track.title}" and pruned to 20 items. Notifying listeners.`);
   notifyHistoryChanged();
 }
 

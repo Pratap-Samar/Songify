@@ -61,4 +61,11 @@ Then serve the `dist/` directory with a server that sends these HTTP headers:
 
 Without those headers the browser blocks `SharedArrayBuffer` and the app will not load. A quick Python one-liner does **not** set those headers.
 
+## Recent Progress (V1 Updates)
+
+- **Database & History**: Implemented an automatic 20-track pruning limit on the `recent_plays` table to keep the database lightweight.
+- **Codebase Cleanup**: Removed unused dependencies (`puppeteer-core`, `shaka-player`), diagnostic logging, and deprecated diagnostic files to ensure a lean V1 footprint.
+- **Build System**: Resolved Expo Metro filesystem watcher bugs and Android SDK configuration issues, establishing a stable Gradle build pipeline for all architectures (arm64, x86). 
+- **Settings UI**: Overhauled the About screen to align with the application's design system, adding dynamic GitHub repository links and a security warning card.
+
 See [plan.md](./plan.md) for the planned architecture and delivery milestones.

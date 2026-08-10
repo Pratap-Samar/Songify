@@ -85,7 +85,10 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
               style={style.createBtnRow} 
               onPress={() => {
                 onClose();
-                router.push('/create-playlist');
+                router.push({
+                  pathname: '/create-playlist',
+                  params: track ? { initialTrack: JSON.stringify(track) } : undefined
+                });
               }}
             >
               <View style={style.createBtnIcon}>

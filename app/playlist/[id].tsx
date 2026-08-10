@@ -17,7 +17,7 @@ import { playCollection } from "@/lib/playback";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 import PlaylistArt from "@/components/PlaylistArt";
 import EditPlaylistArtModal from "@/components/EditPlaylistArtModal";
-import TrackPickerList from "@/components/TrackPickerList";
+import AddTracksModal from "@/components/AddTracksModal";
 import { subscribeToPlaylistChanges } from "@/lib/playlistEvents";
 import { deletePlaylist } from "@/lib/database";
 
@@ -250,16 +250,6 @@ export default function PlaylistDetailScreen() {
           />
         </PressableScale>
       </View>
-
-      {/* Add Track Search Section */}
-      {showSearch && (
-        <View style={style.searchBar}>
-          <TrackPickerList onSelectTrack={(track) => {
-            handleAddTrack(track);
-            setShowSearch(false);
-          }} placeholder="Search to add..." />
-        </View>
-      )}
     </View>
   );
 
@@ -363,6 +353,12 @@ export default function PlaylistDetailScreen() {
         visible={isEditingArt}
         onClose={() => setIsEditingArt(false)}
         playlist={playlist}
+      />
+      <AddTracksModal
+        visible={showSearch}
+        playlistId={playlistId}
+        existingTrackIds={new Set(playlistTracks.map(t => t.videoId))}
+        onClose={() => setShowSearch(false)}
       />
     </View>
   );

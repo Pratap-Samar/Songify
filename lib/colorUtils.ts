@@ -1,4 +1,4 @@
-export function hexToHSL(hex: string): { h: number; s: number; l: number } {
+function hexToHSL(hex: string): { h: number; s: number; l: number } {
   // Strip the hash if present
   hex = hex.replace(/^#/, '');
 
@@ -37,7 +37,7 @@ export function hexToHSL(hex: string): { h: number; s: number; l: number } {
   return { h: h * 360, s: s * 100, l: l * 100 };
 }
 
-export function hslToHex(h: number, s: number, l: number): string {
+function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
   const a = s * Math.min(l, 1 - l) / 100;
   const f = (n: number) => {

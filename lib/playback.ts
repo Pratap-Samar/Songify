@@ -1,9 +1,37 @@
 import { getPlaybackTrack, getAudioProxyUrl } from "./api";
-import { playQueue, generatePlayId, trace } from "./track-player";
+import { playQueue } from "./track-player";
 import { Alert } from "react-native";
 import type { Router } from "expo-router";
 import type { Collection } from "./music";
 import type { PlaybackSource } from "./playback-session";
+
+/**
+ * Tracks the latest navigation request to prevent duplicate screens
+ * from rapid taps during delayed playback initialization.
+ */
+let navRequestId = 0;
+
+/**
+ * Capture a new navigation request ID.
+ */
+export function getNavRequestId() {
+  return ++navRequestId;
+}
+
+/**
+ * Safe, idempotent navigation to the Player screen.
+ * - Uses `router.navigate` to natively prevent stacking duplicate screens.
+ * - If `reqId` is provided (from delayed async calls), it aborts if superseded.
+ * - If called synchronously, it updates the global ID to cancel pending navigation.
+ */
+export function openPlayerSafe(router: Router, videoId: string, reqId?: number) {
+  if (reqId !== undefined) {
+    if (reqId !== navRequestId) return;
+  } else {
+    navRequestId++;
+  }
+  router.navigate({ pathname: "/player", params: { videoId } });
+}
 
 /**
  * Loads a track's playback stream and immediately plays it.
@@ -11,10 +39,7 @@ import type { PlaybackSource } from "./playback-session";
  * Must NOT contain navigation logic.
  */
 export async function loadAndPlayTrack(videoId: string): Promise<void> {
-  const opId = generatePlayId();
-  const tapTs = new Date().toISOString();
-  console.warn(`[PlayOp #${opId}] loadAndPlayTrack() | Track: ${videoId} | ${tapTs} | Tap / Request Start`);
-  const result = await trace(opId, "loadAndPlayTrack", videoId, "getPlaybackTrack()", getPlaybackTrack(videoId));
+  const result = await getPlaybackTrack(videoId);
   if (!result || !result.streamUrl) {
     throw new Error("Unable to resolve playback stream.");
   }
@@ -22,7 +47,7 @@ export async function loadAndPlayTrack(videoId: string): Promise<void> {
     source: "track",
     collectionId: null,
     collectionTitle: null,
-  }, opId);
+  });
 }
 
 /**
@@ -31,9 +56,10 @@ export async function loadAndPlayTrack(videoId: string): Promise<void> {
  * Surfaces errors without navigating.
  */
 export async function playAndOpenPlayer(videoId: string, router: Router): Promise<void> {
+  const currentReq = getNavRequestId();
   try {
     await loadAndPlayTrack(videoId);
-    router.push({ pathname: "/player", params: { videoId } });
+    openPlayerSafe(router, videoId, currentReq);
   } catch (error) {
     console.error("[Playback] Failed to play track:", error);
     Alert.alert(
@@ -48,6 +74,7 @@ export async function playAndOpenPlayer(videoId: string, router: Router): Promis
  * Maps tracks to their proxy URLs for instant queue creation.
  */
 export async function playCollection(collection: Collection & { startIndex: number }, router: Router): Promise<void> {
+  const currentReq = getNavRequestId();
   try {
     const queueTracks = collection.tracks.map((track) => ({
       ...track,
@@ -64,7 +91,7 @@ export async function playCollection(collection: Collection & { startIndex: numb
     
     const firstVideoId = queueTracks[collection.startIndex]?.videoId;
     if (firstVideoId) {
-      router.push({ pathname: "/player", params: { videoId: firstVideoId } });
+      openPlayerSafe(router, firstVideoId, currentReq);
     }
   } catch (error) {
     console.error("[Playback] Failed to play collection:", error);

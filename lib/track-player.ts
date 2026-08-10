@@ -294,31 +294,7 @@ export function getTrackPlayer() { return TrackPlayer; }
 
 export { mapTrack as mapTrackToTrackPlayerItem };
 
-export function generatePlayId() { return ++latestPlayId; }
 export function getLatestPlayId() { return latestPlayId; }
-
-export async function trace<T>(opId: number, func: string, trackId: string, apiName: string, promise: Promise<T>): Promise<T> {
-  const t0 = Date.now();
-  console.warn(`[PlayOp #${opId}] ${func}() | Track: ${trackId} | ${new Date().toISOString()} | PROMISE START: ${apiName}`);
-  try {
-    const result = await promise;
-    console.warn(`[PlayOp #${opId}] ${func}() | Track: ${trackId} | ${new Date().toISOString()} | PROMISE COMPLETE: ${apiName} | duration: ${Date.now() - t0}ms`);
-    return result;
-  } catch (e: any) {
-    console.warn(`[PlayOp #${opId}] ${func}() | Track: ${trackId} | ${new Date().toISOString()} | PROMISE ERROR: ${apiName} | duration: ${Date.now() - t0}ms | err: ${e?.message}`);
-    throw e;
-  }
-}
-
-async function logQueueState(opId: number, funcName: string, message: string) {
-  if (isWeb) return;
-  const q = await TrackPlayer.getQueue();
-  const index = await TrackPlayer.getActiveTrackIndex();
-  const track = await TrackPlayer.getActiveTrack();
-  const state = await TrackPlayer.getPlaybackState();
-  const qIds = q ? q.map(t => t.id).join(", ") : "empty";
-  console.warn(`[PlayOp #${opId}] ${funcName}() | Track: ${track?.id ?? 'none'} | ${new Date().toISOString()} | ${message} | State: ${state}, QLen: ${q?.length ?? 0}, Idx: ${index}, Queue: [${qIds}]`);
-}
 
 class Mutex {
   private mutex = Promise.resolve();
@@ -351,8 +327,6 @@ export async function playQueue(
 
   const playId = opId ?? ++latestPlayId;
   latestPlayId = playId;
-  const rootVideoId = current?.videoId || "unknown";
-  console.warn(`[PlayOp #${playId}] playQueue() | Track: ${rootVideoId} | ${new Date().toISOString()} | Play ID Bound`);
 
   const unlock = await playerMutex.lock();
   try {
@@ -372,8 +346,7 @@ export async function playQueue(
     }
     await ensureSetup();
     if (latestPlayId !== playId) return;
-    await trace(playId, "playQueue", rootVideoId, "TrackPlayer.reset()", TrackPlayer.reset());
-    await logQueueState(playId, "playQueue", "After Queue Reset");
+    await TrackPlayer.reset();
     if (latestPlayId !== playId) return;
     
     const mappedTracks = tracks.map(mapTrack);
@@ -392,12 +365,11 @@ export async function playQueue(
       // by forcing JS to wait for the backend proxy to cache the stream first.
       await prefetchAudioUrl(firstTrack.id);
 
-      await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add([first])", TrackPlayer.add([firstTrack]));
-      await logQueueState(playId, "playQueue", "After Initial Queue Add");
+      await TrackPlayer.add([firstTrack]);
 
       if (latestPlayId !== playId) return;
       // Start playing immediately to avoid flashing through earlier tracks
-      await trace(playId, "playQueue", rootVideoId, "TrackPlayer.play()", TrackPlayer.play());
+      await TrackPlayer.play();
 
       if (latestPlayId !== playId) return;
       let finalAfter = otherTracksAfter;
@@ -409,16 +381,15 @@ export async function playQueue(
         }
       }
       if (finalAfter.length > 0) {
-        await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add(after)", TrackPlayer.add(finalAfter));
+        await TrackPlayer.add(finalAfter);
       }
       if (otherTracksBefore.length > 0) {
-        await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add(before, 0)", TrackPlayer.add(otherTracksBefore, 0));
+        await TrackPlayer.add(otherTracksBefore, 0);
       }
     }
     
     if (latestPlayId !== playId) return;
     setPlaybackSession(sessionInput, tracks, index);
-    await logQueueState(playId, "playQueue", "After Queue Play");
   } finally {
     unlock();
   }

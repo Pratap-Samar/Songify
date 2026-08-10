@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { createPlaylist } from "@/lib/database";
@@ -12,7 +12,7 @@ import TrackPickerList from "@/components/TrackPickerList";
 import { PressableScale } from "@/components/PressableScale";
 import type { Track } from "@/lib/music";
 
-const COLORS = [
+const COLORS = Array.from(new Set([
   theme.colors.accent.primary,
   theme.colors.accent.secondary,
   theme.colors.accent.link,
@@ -20,16 +20,21 @@ const COLORS = [
   theme.colors.accent.likeBold,
   theme.colors.accent.like,
   theme.colors.accent.status,
-  theme.colors.text.primary,
-  "#000000", // Black
-  theme.colors.bg.row, // Background
+  "#ff4500", // Orange Red
   "#ff8c00", // Dark Orange
-  "#ff1493", // Deep Pink
+  "#ffd700", // Gold
+  "#32cd32", // Lime Green
+  "#008000", // Green
+  "#2e8b57", // Sea Green
   "#00fa9a", // Medium Spring Green
+  "#00ced1", // Dark Turquoise
   "#1e90ff", // Dodger Blue
+  "#4169e1", // Royal Blue
   "#8a2be2", // Blue Violet
-  "#ffffff", // White
-];
+  "#9370db", // Medium Purple
+  "#ff1493", // Deep Pink
+  "#dc143c", // Crimson
+]));
 
 const ICONS = [
   "musical-notes",
@@ -62,12 +67,19 @@ export default function CreatePlaylistScreen() {
   const router = useRouter();
   const { addTrack } = usePlaylists();
   const { contentMaxWidth } = useResponsive();
+  const { initialTrack } = useLocalSearchParams<{ initialTrack?: string }>();
 
   const [name, setName] = useState("");
   const [icon, setIcon] = useState(ICONS[0] as string);
   const [color, setColor] = useState(COLORS[0]);
   const [saving, setSaving] = useState(false);
-  const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
+  const [selectedTracks, setSelectedTracks] = useState<Track[]>(() => {
+    try {
+      return initialTrack ? [JSON.parse(initialTrack)] : [];
+    } catch {
+      return [];
+    }
+  });
 
   const handleAddTrack = (track: Track) => {
     if (!selectedTracks.find(t => t.videoId === track.videoId)) {
@@ -84,20 +96,29 @@ export default function CreatePlaylistScreen() {
     if (!trimmedName) return;
 
     setSaving(true);
+    let playlistId = -1;
+
     try {
       const playlist = await createPlaylist(trimmedName, 0, icon, color);
-      
-      // Add all selected tracks to the new playlist
-      for (const track of selectedTracks) {
-        await addTrack(playlist.id, track);
-      }
-      
-      router.dismissAll();
-      router.replace(`/playlist/${playlist.id}`);
+      playlistId = playlist.id;
     } catch (e) {
-      console.error("[CreatePlaylist] failed:", e);
+      console.error("[CreatePlaylist] Playlist creation failed:", e);
+      Alert.alert("Error", "Failed to create playlist.");
       setSaving(false);
+      return;
     }
+
+    try {
+      for (const track of selectedTracks) {
+        await addTrack(playlistId, track);
+      }
+    } catch (e) {
+      console.error("[CreatePlaylist] Track addition failed:", e);
+      Alert.alert("Warning", "Playlist was created, but some tracks could not be added.");
+    }
+    
+    router.dismissAll();
+    router.replace(`/playlist/${playlistId}`);
   };
 
   const previewPlaylist: any = {

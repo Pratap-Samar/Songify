@@ -8,6 +8,7 @@ import { theme } from "@/constants/theme";
 import MarqueeText from "./MarqueeText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
+import { openPlayerSafe } from "@/lib/playback";
 
 function ProgressBar() {
   const { position, duration } = usePlaybackProgress();
@@ -67,7 +68,7 @@ export default function NowPlayingBar({
   const handleBarPress = () => {
     resetInactivity();
     if (track) {
-      router.push({ pathname: "/player", params: { videoId: track.videoId } });
+      openPlayerSafe(router, track.videoId);
     }
   };
 

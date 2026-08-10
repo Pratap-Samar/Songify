@@ -19,8 +19,13 @@ function getApiBaseUrl() {
 async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, { signal });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(payload?.detail ?? "Unable to reach Songify right now.");
+    const payload = (await response.json().catch(() => null)) as { detail?: any } | null;
+    const detailMessage = typeof payload?.detail === "string" 
+      ? payload.detail 
+      : payload?.detail 
+        ? JSON.stringify(payload.detail) 
+        : "Unable to reach Songify right now.";
+    throw new Error(detailMessage);
   }
 
   return response.json() as Promise<T>;

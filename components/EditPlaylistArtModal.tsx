@@ -8,7 +8,7 @@ import { updatePlaylistArt } from "@/lib/database";
 import { useResponsive } from "@/lib/useResponsive";
 import { PressableScale } from "./PressableScale";
 
-const COLORS = [
+const COLORS = Array.from(new Set([
   theme.colors.accent.primary,
   theme.colors.accent.secondary,
   theme.colors.accent.link,
@@ -16,16 +16,21 @@ const COLORS = [
   theme.colors.accent.likeBold,
   theme.colors.accent.like,
   theme.colors.accent.status,
-  theme.colors.text.primary,
-  "#000000", // Black
-  theme.colors.bg.row, // Background
+  "#ff4500", // Orange Red
   "#ff8c00", // Dark Orange
-  "#ff1493", // Deep Pink
+  "#ffd700", // Gold
+  "#32cd32", // Lime Green
+  "#008000", // Green
+  "#2e8b57", // Sea Green
   "#00fa9a", // Medium Spring Green
+  "#00ced1", // Dark Turquoise
   "#1e90ff", // Dodger Blue
+  "#4169e1", // Royal Blue
   "#8a2be2", // Blue Violet
-  "#ffffff", // White
-];
+  "#9370db", // Medium Purple
+  "#ff1493", // Deep Pink
+  "#dc143c", // Crimson
+]));
 
 const ICONS = [
   "musical-notes",
