@@ -10,6 +10,7 @@ import {
   type PlaybackSessionInput,
   type PlaybackTrack,
 } from "./playback-session";
+import { prefetchAudioUrl } from "./api";
 
 const isWeb = Platform.OS === "web";
 
@@ -387,6 +388,10 @@ export async function playQueue(
     const otherTracksAfter = mappedTracks.slice(index + 1);
 
     if (firstTrack) {
+      // Prevent TrackPlayer from timing out during yt-dlp resolution
+      // by forcing JS to wait for the backend proxy to cache the stream first.
+      await prefetchAudioUrl(firstTrack.id);
+
       await trace(playId, "playQueue", rootVideoId, "TrackPlayer.add([first])", TrackPlayer.add([firstTrack]));
       await logQueueState(playId, "playQueue", "After Initial Queue Add");
 
@@ -422,6 +427,12 @@ export async function playQueue(
 export async function skipToNext() {
   if (isWeb) {
     if (webQueue.length === 0) return;
+    if (webQueue.length === 1) {
+      const audio = getAudio();
+      audio.currentTime = 0;
+      await webPlay();
+      return;
+    }
     let nextIndex = webQueueIndex + 1;
     if (nextIndex >= webQueue.length) {
       if (webRepeatMode === 'queue') nextIndex = 0;
@@ -457,6 +468,10 @@ export async function skipToNext() {
     }
   }
 
+  if (queue && queue.length === 1) {
+    return TrackPlayer.seekTo(0);
+  }
+
   if (index !== undefined && queue && index === queue.length - 1 && nativeRepeatMode === 'queue') {
     return TrackPlayer.skip(0);
   }
@@ -466,6 +481,12 @@ export async function skipToNext() {
 export async function skipToPrevious() {
   if (isWeb) {
     if (webQueue.length === 0) return;
+    if (webQueue.length === 1) {
+      const audio = getAudio();
+      audio.currentTime = 0;
+      await webPlay();
+      return;
+    }
     let prevIndex = webQueueIndex - 1;
     if (prevIndex < 0) prevIndex = 0;
     webQueueIndex = prevIndex;
@@ -493,6 +514,10 @@ export async function skipToPrevious() {
       });
       return;
     }
+  }
+
+  if (queue && queue.length === 1) {
+    return TrackPlayer.seekTo(0);
   }
 
   if (index === 0 && nativeRepeatMode === 'queue' && queue?.length) {

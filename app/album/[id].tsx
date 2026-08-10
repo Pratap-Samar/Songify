@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { PressableScale } from "@/components/PressableScale";
+import MarqueeText from "@/components/MarqueeText";
 import { getAlbum } from "@/lib/api";
 import { playCollection } from "@/lib/playback";
 import type { Album, Track } from "@/lib/music";
@@ -253,9 +254,11 @@ export default function AlbumScreen() {
         </View>
         
         <View style={style.trackDetails}>
-          <Text style={[style.trackTitle, isCurrentlyPlaying && style.trackTitlePlaying]} numberOfLines={1}>
-            {item.title}
-          </Text>
+          <MarqueeText 
+            style={[style.trackTitle, isCurrentlyPlaying && style.trackTitlePlaying]} 
+            text={item.title}
+            animate={isCurrentlyPlaying}
+          />
           <Text style={style.trackArtist} numberOfLines={1}>
             {item.artists.join(", ")}
           </Text>

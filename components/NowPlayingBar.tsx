@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
+import MarqueeText from "./MarqueeText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
 
@@ -91,9 +92,7 @@ export default function NowPlayingBar({
             <Image source={{ uri: track.thumbnailUrl }} style={style.thumbnail} cachePolicy="disk" contentFit="cover" transition={150} />
           )}
           <View style={style.textContainer}>
-            <Text numberOfLines={1} style={style.title}>
-              {track.title ?? "No track selected"}
-            </Text>
+            <MarqueeText animate={true} text={track.title ?? "No track selected"} style={style.title} />
             <Text numberOfLines={1} style={style.artist}>
               {(track.artists ?? []).join(", ") || ""}
             </Text>

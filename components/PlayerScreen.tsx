@@ -3,6 +3,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { PressableScale } from "./PressableScale";
+import MarqueeText from "./MarqueeText";
 import { hexToRgba } from "@/lib/colorUtils";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -156,9 +157,11 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
             <View style={style.bottomSection}>
               <View style={style.titleRow}>
                 <View style={style.textWrapper}>
-                  <Text numberOfLines={1} style={[style.title, isCompact && { fontSize: 20 }]}>
-                    {track?.title ?? "Loading..."}
-                  </Text>
+                  <MarqueeText 
+                    animate={true} 
+                    text={track?.title ?? "Loading..."} 
+                    style={[style.title, isCompact && { fontSize: 20 }]} 
+                  />
                   <Text numberOfLines={1} style={[style.artist, isCompact && { fontSize: 16 }]}>
                     {(track?.artists ?? []).join(", ") || ""}
                   </Text>

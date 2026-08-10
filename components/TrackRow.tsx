@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { theme } from "@/constants/theme";
 import { PressableScale } from "./PressableScale";
+import MarqueeText from "./MarqueeText";
 
 export type TrackRowProps = {
   title: string;
@@ -41,9 +42,11 @@ export function TrackRow({
         )}
       </View>
       <View style={style.dataContainer}>
-        <Text numberOfLines={1} style={[style.title, isSelected && style.titleSelected]}>
-          {title}
-        </Text>
+        <MarqueeText 
+          text={title} 
+          style={[style.title, isSelected && style.titleSelected]} 
+          animate={isSelected} 
+        />
         <Text numberOfLines={1} style={[style.subtitle, isSelected && style.subtitleSelected]}>
           {subtitle}
         </Text>

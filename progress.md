@@ -173,3 +173,20 @@
 ## 33. Destructive UI Confirmation Dialogs
 - **The Upgrade:** Destructive actions must not execute instantly on accidental taps.
 - **The Fix:** Wrapped the playlist deletion function (`remove`) inside the `library.tsx` tab with a native `Alert.alert` confirmation dialog. Users are now explicitly prompted with "Are you sure you want to delete this playlist?" preventing accidental, irreversible destruction of custom playlists.
+## 34. Marquee Text Animations for Long Titles
+- **The Upgrade:** Implemented a seamless, infinitely scrolling marquee animation for overly long track titles.
+- **The Fix:** Created a reusable `MarqueeText` component that uses invisible measurement logic to only animate when a title exceeds its container width. The animation pauses briefly before scrolling, loops infinitely with a 40px gap, and stops completely when the track loses focus/activity to maintain a clean UI.
+
+## 35. Solo Track Seek-to-Zero on Skip
+- **The Issue:** Pressing Next/Previous during solo-track playback (e.g. History or Search results) would erroneously attempt to advance the queue and stop playback because no adjacent tracks existed.
+- **The Fix:** Updated `lib/track-player.ts` to detect `queue.length === 1`. Next/Previous actions now properly execute a `seekTo(0)` behavior, instantly restarting the current song as expected for solo playback.
+
+## 36. Proxy Audio Timeout & Format Fallbacks
+- **The Issue:** 
+  - Playing un-prefetched tracks caused the native audio player to time out while waiting for `yt-dlp` stream extraction, resulting in a persistent `error` state.
+  - Strictly audio-only releases lacked YouTube's legacy format `18`, crashing the proxy if fallback logic wasn't in place. 
+  - `206 Partial Content` responses omitting `Content-Type` triggered 502 errors on cache hits.
+- **The Fix:** 
+  1. `lib/track-player.ts` now explicitly uses `await prefetchAudioUrl` right before passing the track to the native player, ensuring JS waits for extraction and hits the cache instantly when native playback begins.
+  2. The backend proxy seamlessly falls back to audio-only formats (`bestaudio`) if format `18` is unavailable.
+  3. The proxy utilizes the cached `upstream_ct` during `206` responses if the CDN omits the header, preventing `502` errors when scrubbing or resuming playback.

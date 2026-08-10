@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { PressableScale } from "@/components/PressableScale";
+import MarqueeText from "@/components/MarqueeText";
 import { darkenHex, hexToRgba } from "@/lib/colorUtils";
 import { usePlaylists, type PlaylistTrackEntry } from "@/lib/usePlaylists";
 import type { Playlist } from "@/lib/database";
@@ -283,12 +284,11 @@ export default function PlaylistDetailScreen() {
               </View>
             )}
             <View style={style.trackText}>
-              <Text
+              <MarqueeText
                 style={[style.trackTitle, { fontSize: baseSize, color: titleColor }]}
-                numberOfLines={1}
-              >
-                {item.title}
-              </Text>
+                text={item.title}
+                animate={isCurrentlyPlaying}
+              />
               <Text style={[style.trackArtist, { fontSize: baseSize * 0.85 }]} numberOfLines={1}>
                 {item.artists}
               </Text>

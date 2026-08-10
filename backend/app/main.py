@@ -141,8 +141,11 @@ def get_ytmusic() -> YTMusic:
 
 
 def resolve_stream_url(video_id: str) -> tuple[str, dict[str, str], dict[str, Any]] | None:
-    """Return the compatible progressive format 18 stream."""
-    return _resolve_stream_url(video_id, combined=True)
+    """Return the compatible progressive format 18 stream, fallback to audio-only if not available."""
+    result = _resolve_stream_url(video_id, combined=True)
+    if result is not None:
+        return result
+    return _resolve_stream_url(video_id, combined=False)
 
 
 def resolve_stream_url_combined(video_id: str) -> tuple[str, dict[str, str], dict[str, Any]] | None:
@@ -546,7 +549,7 @@ async def proxy_audio(video_id: str, request: Request):
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Audio proxy error: {type(exc).__name__}") from exc
 
-        check_ct = upstream.headers.get("content-type") or ""
+        check_ct = upstream.headers.get("content-type") or upstream_ct or ""
         is_playable = (
             upstream.status_code == 200 or upstream.status_code == 206
         ) and (
