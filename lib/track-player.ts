@@ -437,9 +437,26 @@ export async function skipToNext() {
     return;
   }
   await ensureSetup();
-  const queue = await TrackPlayer.getQueue();
-  const index = await TrackPlayer.getActiveTrackIndex();
+  let queue = await TrackPlayer.getQueue();
+  let index = await TrackPlayer.getActiveTrackIndex();
   
+  if (!queue || queue.length === 0) {
+    const session = getPlaybackSession();
+    if (session && session.queue && session.queue.length > 0) {
+      let nextIndex = session.currentIndex + 1;
+      if (nextIndex >= session.queue.length) {
+        if (nativeRepeatMode === 'queue') nextIndex = 0;
+        else return;
+      }
+      await playQueue(session.queue, nextIndex, {
+        source: session.source,
+        collectionId: session.collectionId,
+        collectionTitle: session.collectionTitle
+      });
+      return;
+    }
+  }
+
   if (index !== undefined && queue && index === queue.length - 1 && nativeRepeatMode === 'queue') {
     return TrackPlayer.skip(0);
   }
@@ -461,9 +478,23 @@ export async function skipToPrevious() {
     return;
   }
   await ensureSetup();
-  const queue = await TrackPlayer.getQueue();
-  const index = await TrackPlayer.getActiveTrackIndex();
+  let queue = await TrackPlayer.getQueue();
+  let index = await TrackPlayer.getActiveTrackIndex();
   
+  if (!queue || queue.length === 0) {
+    const session = getPlaybackSession();
+    if (session && session.queue && session.queue.length > 0) {
+      let prevIndex = session.currentIndex - 1;
+      if (prevIndex < 0) prevIndex = 0;
+      await playQueue(session.queue, prevIndex, {
+        source: session.source,
+        collectionId: session.collectionId,
+        collectionTitle: session.collectionTitle
+      });
+      return;
+    }
+  }
+
   if (index === 0 && nativeRepeatMode === 'queue' && queue?.length) {
     return TrackPlayer.skip(queue.length - 1);
   }
@@ -490,6 +521,20 @@ async function togglePlayPauseInternal() {
     return;
   }
   await ensureSetup();
+  const queue = await TrackPlayer.getQueue();
+  
+  if (!queue || queue.length === 0) {
+    const session = getPlaybackSession();
+    if (session && session.queue && session.queue.length > 0) {
+      await playQueue(session.queue, session.currentIndex, {
+        source: session.source,
+        collectionId: session.collectionId,
+        collectionTitle: session.collectionTitle
+      });
+      return;
+    }
+  }
+
   const { state } = await TrackPlayer.getPlaybackState();
   if (state === State.Playing) await TrackPlayer.pause();
   else await TrackPlayer.play();

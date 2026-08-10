@@ -187,16 +187,13 @@ const style = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 20,
     backgroundColor: theme.colors.bg.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
   },
   filterChipActive: {
-    backgroundColor: theme.colors.accent.primary,
-    borderColor: theme.colors.accent.primary,
+    backgroundColor: theme.colors.accent.blue,
   },
   filterText: {
     color: theme.colors.text.primary,
-    fontSize: 14,
+    fontSize: 13,
   },
   filterTextActive: {
     color: theme.colors.text.onPrimary,

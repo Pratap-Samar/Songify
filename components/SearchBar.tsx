@@ -61,15 +61,10 @@ const style = StyleSheet.create({
     height: 50,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    borderColor: 'transparent',
   },
   formContainerFocused: {
-    borderColor: theme.colors.accent.primary,
+    borderColor: theme.colors.border.strong,
   },
   input: {
     flex: 1,

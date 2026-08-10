@@ -28,16 +28,15 @@ export default function PlaylistArt({ playlist, size = 44, onEdit }: PlaylistArt
   return (
     <View style={[style.container, { width: size, height: size, borderRadius }]}>
       {hasColor ? (
-        <LinearGradient 
-          colors={[playlist.coverColor!, darkenHex(playlist.coverColor!, 20)]}
-          style={[style.artWrapper, { borderRadius }]}
+        <View 
+          style={[style.artWrapper, { borderRadius, backgroundColor: playlist.coverColor! }]}
         >
           <Ionicons 
             name={iconName as any} 
             size={iconSize} 
             color={playlist.coverColor === theme.colors.bg.surface || playlist.coverColor === theme.colors.bg.row ? theme.colors.text.primary : theme.colors.text.onPrimary} 
           />
-        </LinearGradient>
+        </View>
       ) : (
         <View style={[style.placeholderWrapper, { borderRadius }]}>
           <Ionicons name={iconName as any} size={iconSize} color={theme.colors.text.secondary} />
@@ -81,10 +80,5 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.bg.page,
     borderRadius: 12,
     padding: 4,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
   },
 });

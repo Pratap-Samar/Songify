@@ -149,3 +149,27 @@
 - **Icon Standardization:** Enforced a solid-by-default icon policy across the app using `Ionicons`, reserving `-outline` variants solely for inactive toggle states. Standardized global icon sizing scales.
 - **Gradient Refinements:** Added subtle `LinearGradient` effects behind Album and Playlist artwork. To maintain a tasteful UI, dynamic color backgrounds use a new HSL-based `darkenHex` utility to deeply dim cover colors rather than producing harsh neon backgrounds.
 - **Playlist Customization Expansion:** Re-expanded the `COLORS` grid for playlist customization, providing 16 distinct options, deliberately resolving repeating cyan/purple values with highly contrasting swatches, and explicitly including pure black and the primary app theme color.
+
+## 30. Visual Identity Revamp (Subtle Spider-Verse)
+- **The Upgrade:** Shifted the app from a pure black/gray "Sunset" aesthetic to a rich, cinematic, Spider-Verse inspired dark mode.
+- **The Changes:**
+  - Introduced deep indigo foundations (`bg.page: #0B0B14`, `bg.surface: #151522`) replacing pure black.
+  - Used crimson (`accent.primary: #E52B4D`) as the primary interactive accent, offset by cool blue and violet structural tones.
+  - Rebuilt the `NowPlayingBar` (mini-player) and `PersistentTabBar` active states to feel like elevated floating surfaces with vivid active tints.
+  - Added synchronized, global-state-aware circular Play/Pause floating action buttons to Album and Playlist screens.
+  - Injected deeply blurred, low-opacity ambient artwork backgrounds behind the Player, Album, Playlist, and Home screens for a unified cinematic glow.
+  - Refined global typography hierarchy, mapping all secondary metadata to a new cool blue-gray scale (`text.metadata: #8F9BB5`).
+
+## 31. App Restart Playback Crash Fix
+- **The Issue:** Tracks loaded via search or history saved their direct streaming URLs to the native TrackPlayer queue and SQLite database. These direct URLs contain expiration tokens (valid for ~24 hours). When reopening the app later, pressing Play would cause the player to crash while attempting to load the expired URL.
+- **The Fix:** 
+  - Updated `getPlaybackTrack` in `lib/api.ts` to strictly route all `streamUrl`s through the app's internal `/proxy/audio/` route, guaranteeing unexpired, on-demand resolution natively.
+  - Added a sanitization layer in `hooks/usePlaybackState.ts` that intercepts legacy queues from SQLite on startup, overriding any old direct URLs with proxy URLs to instantly repair broken persistent sessions.
+
+## 32. Native Queue Rebuild Fallback
+- **The Upgrade:** When the app remains backgrounded for long periods, Android silently kills the background media service to reclaim memory, emptying the native queue while the JS UI remains visually intact.
+- **The Fix:** Injected a robust safety layer directly into `lib/track-player.ts` (`togglePlayPause`, `skipToNext`, `skipToPrevious`). Whenever user interaction detects an empty native queue, it instantly reads the persisted playback session from the JavaScript memory and seamlessly reconstructs the full native queue behind the scenes, allowing playback to resume exactly where it was killed without any UI glitch.
+
+## 33. Destructive UI Confirmation Dialogs
+- **The Upgrade:** Destructive actions must not execute instantly on accidental taps.
+- **The Fix:** Wrapped the playlist deletion function (`remove`) inside the `library.tsx` tab with a native `Alert.alert` confirmation dialog. Users are now explicitly prompted with "Are you sure you want to delete this playlist?" preventing accidental, irreversible destruction of custom playlists.

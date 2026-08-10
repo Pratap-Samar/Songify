@@ -11,11 +11,12 @@ import { playCollection } from "@/lib/playback";
 import type { Album, Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
-import { useActiveTrack, useShuffleMode } from "@/hooks/usePlaybackState";
+import { useActiveTrack, useShuffleMode, usePlaybackSession, usePlaybackControls } from "@/hooks/usePlaybackState";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 import { addAlbum, removeAlbum, isAlbumSaved, initDb } from "@/lib/database";
 import { useLikeModal } from "@/lib/LikeModalContext";
-import { darkenHex } from "@/lib/colorUtils";
+import { darkenHex, hexToRgba } from "@/lib/colorUtils";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
 
 export default function AlbumScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,10 +28,23 @@ export default function AlbumScreen() {
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const shuffleEnabled = useShuffleMode();
   const { track: activeTrack, isPlaying } = useActiveTrack();
+  const session = usePlaybackSession();
+  const { togglePlayPause } = usePlaybackControls();
   const [isSaved, setSaved] = useState(false);
   const [toggling, setToggling] = useState(false);
   const { openLikeModal, isLiked } = useLikeModal();
   const { tabBarHeight } = useTabBarHeight();
+  
+  const isThisCollectionActive = session?.collectionId === album?.id;
+  const showPause = isThisCollectionActive && isPlaying;
+
+  const handleMainPlay = () => {
+    if (isThisCollectionActive) {
+      togglePlayPause();
+    } else {
+      handlePlayAlbum();
+    }
+  };
   
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -94,9 +108,28 @@ export default function AlbumScreen() {
 
   if (loading) {
     return (
-      <View style={style.center}>
-        <ActivityIndicator size="large" color={theme.colors.accent.primary} />
-      </View>
+      <SafeAreaView style={style.container}>
+        <View style={{ alignItems: 'center', paddingTop: 60, paddingHorizontal: 20 }}>
+          <SkeletonLoader width={300} height={300} borderRadius={12} style={{ marginBottom: 24 }} />
+          <SkeletonLoader width="50%" height={22} style={{ marginBottom: 12 }} />
+          <SkeletonLoader width="30%" height={16} style={{ marginBottom: 32 }} />
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 32 }}>
+            <SkeletonLoader width={120} height={44} borderRadius={22} />
+            <SkeletonLoader width={44} height={44} borderRadius={22} />
+            <SkeletonLoader width={44} height={44} borderRadius={22} />
+          </View>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', width: '100%', paddingVertical: 10 }}>
+              <SkeletonLoader width={20} height={16} borderRadius={4} style={{ marginRight: 16 }} />
+              <View style={{ flex: 1 }}>
+                <SkeletonLoader width="70%" height={16} style={{ marginBottom: 6 }} />
+                <SkeletonLoader width="40%" height={13} />
+              </View>
+              <SkeletonLoader width={28} height={28} borderRadius={14} />
+            </View>
+          ))}
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -106,7 +139,7 @@ export default function AlbumScreen() {
         <Ionicons name="alert-circle" size={64} color={theme.colors.text.secondary} />
         <Text style={style.errorTitle}>Album Not Found</Text>
         <Text style={style.errorText}>{error || "Could not load the album details."}</Text>
-        <PressableScale style={style.backBtn} onPress={goBack}>
+        <PressableScale style={style.backBtn} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Text style={style.backBtnText}>Go Back</Text>
         </PressableScale>
       </View>
@@ -137,13 +170,13 @@ export default function AlbumScreen() {
 
   const renderHeader = () => (
     <View style={style.headerContainer}>
-      <PressableScale style={style.headerBack} onPress={goBack}>
+      <PressableScale style={style.headerBack} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
         <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
       </PressableScale>
       
       <View style={style.artworkWrapper}>
         {album.artwork ? (
-          <Image source={{ uri: album.artwork }} style={style.artwork} cachePolicy="disk" contentFit="cover" transition={150} />
+          <Image source={{ uri: album.artwork || undefined }} style={style.artwork} cachePolicy="disk" contentFit="cover" transition={150} />
         ) : (
           <View style={style.artworkPlaceholder}>
             <Ionicons name="musical-notes" size={64} color={theme.colors.text.secondary} />
@@ -166,23 +199,22 @@ export default function AlbumScreen() {
       </Text>
 
       <View style={style.controlsRow}>
-        <PressableScale onPress={handlePlayAlbum}>
-          <LinearGradient
-            colors={[theme.colors.accent.primary, darkenHex(theme.colors.accent.primary, 15)]}
-            style={style.playButton}
+        <PressableScale onPress={handleMainPlay}>
+          <View
+            style={[style.playButton, { backgroundColor: theme.colors.accent.primary }]}
           >
-            <Ionicons name="play" size={24} color={theme.colors.text.onPrimary} />
-            <Text style={style.playButtonText}>Play</Text>
-          </LinearGradient>
+            <Ionicons name={showPause ? "pause" : "play"} size={28} color={theme.colors.text.onPrimary} style={{ marginLeft: showPause ? 0 : 4 }} />
+          </View>
         </PressableScale>
-        <PressableScale
-          style={[style.actionButton, shuffleEnabled && { borderColor: theme.colors.accent.primary }]}
+        <PressableScale 
+          style={[style.actionButton, shuffleEnabled && { backgroundColor: hexToRgba(theme.colors.accent.secondary, 0.2), borderColor: 'transparent' }]}
           onPress={async () => {
+            import("expo-haptics").then(Haptics => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
             const { toggleShuffleMode } = await import('@/lib/track-player');
             await toggleShuffleMode();
           }}
         >
-          <Ionicons name="shuffle" size={24} color={shuffleEnabled ? theme.colors.accent.primary : theme.colors.text.secondary} />
+          <Ionicons name="shuffle" size={24} color={shuffleEnabled ? theme.colors.text.primary : theme.colors.text.secondary} />
         </PressableScale>
         <PressableScale
           style={style.actionButton}
@@ -195,7 +227,7 @@ export default function AlbumScreen() {
             <Ionicons 
               name={isSaved ? "heart" : "heart-outline"} 
               size={24} 
-              color={isSaved ? theme.colors.accent.like : theme.colors.text.secondary} 
+              color={isSaved ? theme.colors.accent.likeBold : theme.colors.text.secondary} 
               style={isSaved ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
             />
           )}
@@ -231,11 +263,11 @@ export default function AlbumScreen() {
         
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={style.trackDuration}>{item.duration}</Text>
-          <PressableScale style={style.downloadBtn} onPress={() => openLikeModal(item)}>
+          <PressableScale style={style.downloadBtn} onPress={() => openLikeModal(item)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons 
               name={liked ? "heart" : "heart-outline"} 
-              size={22} 
-              color={liked ? theme.colors.accent.like : theme.colors.text.secondary} 
+              size={24} 
+              color={liked ? theme.colors.accent.likeBold : theme.colors.text.secondary} 
               style={liked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
             />
           </PressableScale>
@@ -259,6 +291,17 @@ export default function AlbumScreen() {
 
   return (
     <SafeAreaView edges={["top"]} style={style.container}>
+      {album.artwork && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <Image
+            source={{ uri: album.artwork }}
+            style={StyleSheet.absoluteFillObject}
+            blurRadius={80}
+            contentFit="cover"
+          />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.bg.page, opacity: 0.85 }]} />
+        </View>
+      )}
       <FlatList
         data={album.tracks}
         keyExtractor={(item, index) => `${item.videoId}-${index}`}
@@ -299,7 +342,7 @@ const style = StyleSheet.create({
   },
   errorText: {
     color: theme.colors.text.primary,
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 16,
   },
   backBtn: {
@@ -314,7 +357,7 @@ const style = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
   },
   trackList: {
     flex: 1,
@@ -341,8 +384,8 @@ const style = StyleSheet.create({
     borderRadius: 20,
   },
   artworkWrapper: {
-    width: 200,
-    height: 200,
+    width: 240,
+    height: 240,
     borderRadius: 16,
     shadowColor: "#000",
     shadowOpacity: 0.2,
@@ -371,7 +414,7 @@ const style = StyleSheet.create({
     marginBottom: 8,
   },
   artist: {
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.metadata,
     fontWeight: "600",
     marginBottom: 8,
   },
@@ -385,18 +428,22 @@ const style = StyleSheet.create({
     gap: 16,
   },
   playButton: {
-    flexDirection: "row",
     backgroundColor: theme.colors.accent.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 8,
+    shadowColor: theme.colors.accent.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   playButtonText: {
     color: theme.colors.text.onPrimary,
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 15,
   },
   actionButton: {
     width: 48,
@@ -405,8 +452,6 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.bg.surface,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
   },
   actionButtonDisabled: {
     backgroundColor: theme.colors.disabled.bg,
@@ -415,17 +460,8 @@ const style = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: theme.colors.bg.row,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    marginBottom: 4,
   },
   trackNumberContainer: {
     width: 32,
@@ -433,7 +469,7 @@ const style = StyleSheet.create({
   },
   trackNumber: {
     color: theme.colors.text.muted,
-    fontSize: 14,
+    fontSize: 13,
   },
   trackNumberPlaying: {
     color: theme.colors.accent.primary,
@@ -446,7 +482,7 @@ const style = StyleSheet.create({
   },
   trackTitle: {
     color: theme.colors.text.primary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "500",
     marginBottom: 4,
   },
@@ -454,7 +490,7 @@ const style = StyleSheet.create({
     color: theme.colors.accent.primary,
   },
   trackArtist: {
-    color: theme.colors.text.muted,
+    color: theme.colors.text.metadata,
     fontSize: 13,
   },
   trackDuration: {

@@ -1,17 +1,17 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { FlatList, StyleSheet, Text, TextInput, View, ActivityIndicator, Alert, Animated } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { PressableScale } from "@/components/PressableScale";
-import { darkenHex } from "@/lib/colorUtils";
+import { darkenHex, hexToRgba } from "@/lib/colorUtils";
 import { usePlaylists, type PlaylistTrackEntry } from "@/lib/usePlaylists";
 import type { Playlist } from "@/lib/database";
 import type { Track } from "@/lib/music";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
-import { useActiveTrack, useShuffleMode } from "@/hooks/usePlaybackState";
+import { useActiveTrack, useShuffleMode, usePlaybackSession, usePlaybackControls } from "@/hooks/usePlaybackState";
 import { playCollection } from "@/lib/playback";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 import PlaylistArt from "@/components/PlaylistArt";
@@ -45,7 +45,20 @@ export default function PlaylistDetailScreen() {
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const shuffleEnabled = useShuffleMode();
   const { track: activeTrack, isPlaying } = useActiveTrack();
+  const session = usePlaybackSession();
+  const { togglePlayPause } = usePlaybackControls();
   const { tabBarHeight } = useTabBarHeight();
+
+  const isThisCollectionActive = session?.collectionId === String(playlist?.id);
+  const showPause = isThisCollectionActive && isPlaying;
+
+  const handleMainPlay = () => {
+    if (isThisCollectionActive) {
+      togglePlayPause();
+    } else {
+      handlePlayPlaylist();
+    }
+  };
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -155,7 +168,7 @@ export default function PlaylistDetailScreen() {
 
   const renderHeader = () => (
     <View style={style.headerContainer}>
-      <PressableScale style={style.headerBack} onPress={goBack}>
+      <PressableScale style={style.headerBack} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
         <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
       </PressableScale>
       <PressableScale
@@ -174,7 +187,7 @@ export default function PlaylistDetailScreen() {
       <View style={style.artworkWrapper}>
         <PlaylistArt 
           playlist={playlist} 
-          size={180} 
+          size={240} 
           onEdit={() => setIsEditingArt(true)} 
         />
       </View>
@@ -210,26 +223,25 @@ export default function PlaylistDetailScreen() {
       </Text>
 
       <View style={style.controlsRow}>
-        <PressableScale onPress={handlePlayPlaylist}>
-          <LinearGradient
-            colors={[theme.colors.accent.primary, darkenHex(theme.colors.accent.primary, 15)]}
-            style={style.playButton}
+        <PressableScale onPress={handleMainPlay} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <View
+            style={[style.playButton, { backgroundColor: theme.colors.accent.primary }]}
           >
-            <Ionicons name="play" size={24} color={theme.colors.text.onPrimary} />
-            <Text style={style.playButtonText}>Play</Text>
-          </LinearGradient>
+            <Ionicons name={showPause ? "pause" : "play"} size={28} color={theme.colors.text.onPrimary} style={{ marginLeft: showPause ? 0 : 4 }} />
+          </View>
         </PressableScale>
         <PressableScale 
-          style={[style.actionButton, shuffleEnabled && { borderColor: theme.colors.accent.primary }]} 
+          style={[style.actionButton, shuffleEnabled && { backgroundColor: hexToRgba(theme.colors.accent.secondary, 0.2), borderColor: 'transparent' }]} 
           onPress={async () => {
+            import("expo-haptics").then(Haptics => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
             const { toggleShuffleMode } = await import('@/lib/track-player');
             await toggleShuffleMode();
           }}
         >
-          <Ionicons name="shuffle" size={24} color={shuffleEnabled ? theme.colors.accent.primary : theme.colors.text.secondary} />
+          <Ionicons name="shuffle" size={24} color={shuffleEnabled ? theme.colors.text.primary : theme.colors.text.secondary} />
         </PressableScale>
 
-        <PressableScale style={style.actionButton} onPress={() => setShowSearch(!showSearch)}>
+        <PressableScale style={style.actionButton} onPress={() => setShowSearch(!showSearch)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons
             name="add"
             size={24}
@@ -287,7 +299,7 @@ export default function PlaylistDetailScreen() {
             {formatDuration(item.durationMs)}
           </Text>
         </View>
-        <PressableScale style={style.downloadBtn} onPress={() => handleRemoveTrack(item.videoId)}>
+        <PressableScale style={style.downloadBtn} onPress={() => handleRemoveTrack(item.videoId)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons 
             name="close-circle" 
             size={24} 
@@ -311,8 +323,32 @@ export default function PlaylistDetailScreen() {
     );
   };
 
+  // In the future, this can be `playlist?.artwork || undefined` when custom artwork is supported.
+  const customArtwork = undefined;
+  const ambientColor = playlist?.coverColor;
+
   return (
     <View style={style.container}>
+      {customArtwork ? (
+        <View style={StyleSheet.absoluteFillObject}>
+          <Image
+            source={{ uri: customArtwork }}
+            style={StyleSheet.absoluteFillObject}
+            blurRadius={80}
+            contentFit="cover"
+          />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.bg.page, opacity: 0.85 }]} />
+        </View>
+      ) : ambientColor ? (
+        <View style={StyleSheet.absoluteFillObject}>
+           <LinearGradient
+            colors={[ambientColor, theme.colors.bg.page]}
+            style={[StyleSheet.absoluteFillObject, { opacity: 0.15 }]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 0.5 }}
+          />
+        </View>
+      ) : null}
       <FlatList
         data={playlistTracks}
         keyExtractor={(item) => `${playlistId}-${item.videoId}`}
@@ -345,7 +381,7 @@ const style = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 40,
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
   },
   miniPlayerContainer: {
     width: "100%",
@@ -404,7 +440,7 @@ const style = StyleSheet.create({
     textAlign: "center",
   },
   metadata: {
-    color: theme.colors.text.muted,
+    color: theme.colors.text.metadata,
     textAlign: "center",
     marginBottom: 24,
   },
@@ -417,17 +453,20 @@ const style = StyleSheet.create({
   },
   playButton: {
     backgroundColor: theme.colors.accent.primary,
-    flexDirection: "row",
-    alignItems: "center",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 24,
-    gap: 8,
+    alignItems: "center",
+    shadowColor: theme.colors.accent.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   playButtonText: {
     color: theme.colors.text.onPrimary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
   },
   actionButton: {
@@ -437,24 +476,13 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.bg.surface,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
   },
   trackRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: theme.colors.bg.row,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    marginBottom: 4,
   },
   trackNumberContainer: {
     width: 32,
@@ -491,7 +519,7 @@ const style = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: hexToRgba(theme.colors.bg.row, 0.5),
   },
   trackText: {
     flex: 1,
@@ -499,19 +527,19 @@ const style = StyleSheet.create({
   },
   trackTitle: {
     color: theme.colors.text.primary,
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 4,
   },
   trackTitlePlaying: {
     color: theme.colors.accent.status,
   },
   trackArtist: {
-    color: theme.colors.text.muted,
-    fontSize: 14,
+    fontSize: 13,
+    color: theme.colors.text.metadata,
   },
   trackDuration: {
-    color: theme.colors.text.muted,
-    fontSize: 14,
+    color: theme.colors.text.metadata,
+    fontSize: 13,
     marginHorizontal: 12,
   },
   downloadBtn: {
@@ -529,20 +557,13 @@ const style = StyleSheet.create({
     padding: 12,
     backgroundColor: theme.colors.bg.surface,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
   },
   searchInput: {
     backgroundColor: "rgba(0, 0, 0, 0.15)",
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 42,
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.text.primary,
     borderWidth: 1,
     borderColor: "transparent",
@@ -553,8 +574,8 @@ const style = StyleSheet.create({
   searchResultItem: {
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    borderBottomColor: theme.colors.border.default,
   },
-  searchResultTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text.primary },
-  searchResultArtist: { fontSize: 12, color: theme.colors.text.muted },
+  searchResultTitle: { fontSize: 15, fontWeight: "600", color: theme.colors.text.primary },
+  searchResultArtist: { fontSize: 11, color: theme.colors.text.metadata },
 });

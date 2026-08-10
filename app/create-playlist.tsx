@@ -17,10 +17,10 @@ const COLORS = [
   theme.colors.accent.secondary,
   theme.colors.accent.link,
   theme.colors.accent.premium,
+  theme.colors.accent.likeBold,
   theme.colors.accent.like,
   theme.colors.accent.status,
   theme.colors.text.primary,
-  "#f7768e", // Tokyo Night red
   "#000000", // Black
   theme.colors.bg.row, // Background
   "#ff8c00", // Dark Orange
@@ -160,7 +160,7 @@ export default function CreatePlaylistScreen() {
               >
                 <Ionicons 
                   name={i as any} 
-                  size={28} 
+                  size={32} 
                   color={icon === i ? theme.colors.text.primary : theme.colors.text.secondary} 
                 />
               </PressableScale>
@@ -235,12 +235,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    borderBottomColor: theme.colors.border.default,
     width: "100%",
     alignSelf: "center",
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "bold",
     color: theme.colors.text.primary,
   },
@@ -251,11 +251,11 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   headerBtnTextCancel: {
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.text.secondary,
   },
   headerBtnTextSave: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
     color: theme.colors.accent.primary,
   },
@@ -284,12 +284,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: theme.colors.text.primary,
     borderBottomWidth: 2,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomColor: theme.colors.border.default,
     paddingVertical: 8,
     textAlign: "center",
   },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: theme.colors.text.primary,
     marginBottom: 12,
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomColor: theme.colors.border.default,
   },
   selectedTrackInfo: {
     flex: 1,
@@ -356,12 +356,12 @@ const styles = StyleSheet.create({
   },
   selectedTrackTitle: {
     color: theme.colors.text.primary,
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 4,
   },
   selectedTrackArtist: {
     color: theme.colors.text.secondary,
-    fontSize: 14,
+    fontSize: 13,
   },
   removeBtn: {
     padding: 4,

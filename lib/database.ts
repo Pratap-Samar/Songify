@@ -3,6 +3,7 @@ import type { Track } from "./music";
 import type { PlaybackSession } from "./playback-session";
 import type { AlbumSearchItem } from "./music";
 import { logger } from "./logger";
+import { getPlaybackTrack } from "./api";
 import { notifyHistoryChanged } from "./historyEvents";
 import { notifyPlaylistsChanged } from "./playlistEvents";
 import { notifyAlbumsChanged } from "./albumEvents";
@@ -427,6 +428,18 @@ export async function addTrackToPlaylist(playlistId: number, track: Track) {
   const db = await getDbAsync();
   if (!db) return;
 
+  let finalDurationMs = track.durationMs;
+  if (!finalDurationMs || Number(finalDurationMs) === 0) {
+    try {
+      const pb = await getPlaybackTrack(track.videoId);
+      if (pb && pb.durationMs) {
+        finalDurationMs = pb.durationMs;
+      }
+    } catch (e) {
+      console.warn("[DB] Failed to fetch missing duration on add:", track.videoId, e);
+    }
+  }
+
   const res = await db.getFirstAsync<{ maxPos: number }>(
     `SELECT MAX(position) as maxPos FROM playlist_tracks WHERE playlistId = ?`,
     [playlistId]
@@ -442,7 +455,7 @@ export async function addTrackToPlaylist(playlistId: number, track: Track) {
       track.title,
       JSON.stringify(track.artists),
       track.album,
-      track.durationMs,
+      finalDurationMs,
       track.thumbnailUrl,
       position,
     ]
@@ -459,11 +472,11 @@ export async function updateTrackDuration(videoId: string, durationMs: number) {
   if (!db) return;
 
   await db.runAsync(
-    `UPDATE playlist_tracks SET durationMs = ? WHERE videoId = ? AND (durationMs IS NULL OR durationMs = 0)`,
+    `UPDATE playlist_tracks SET durationMs = ? WHERE videoId = ?`,
     [durationMs, videoId]
   );
   await db.runAsync(
-    `UPDATE recent_plays SET durationMs = ? WHERE videoId = ? AND (durationMs IS NULL OR durationMs = 0)`,
+    `UPDATE recent_plays SET durationMs = ? WHERE videoId = ?`,
     [durationMs, videoId]
   );
   notifyPlaylistsChanged();

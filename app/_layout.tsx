@@ -55,6 +55,12 @@ export default function RootLayout() {
               animation: "slide_from_right", // Native iOS style slide for all screens
             }}
           >
+            <Stack.Screen name="(tabs)/index" options={{ animation: "fade" }} />
+            <Stack.Screen name="(tabs)/library" options={{ animation: "fade" }} />
+            <Stack.Screen name="(tabs)/search" options={{ animation: "fade" }} />
+            <Stack.Screen name="(tabs)/settings" options={{ animation: "fade" }} />
+            <Stack.Screen name="album/[id]" options={{ animation: "slide_from_right" }} />
+            <Stack.Screen name="playlist/[id]" options={{ animation: "slide_from_right" }} />
             <Stack.Screen
               name="player"
               options={{

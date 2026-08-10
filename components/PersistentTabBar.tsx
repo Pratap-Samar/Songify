@@ -11,13 +11,17 @@ import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 type TabConfig = {
   name: string;
   path: any; // Route type
-  icon: keyof typeof Ionicons.glyphMap;
+  activeIcon: keyof typeof Ionicons.glyphMap;
+  inactiveIcon: keyof typeof Ionicons.glyphMap;
 };
 
+import { hexToRgba } from "@/lib/colorUtils";
+
 const TABS: TabConfig[] = [
-  { name: "Home", path: "/", icon: "home" },
-  { name: "Library", path: "/library", icon: "library" },
-  { name: "Settings", path: "/settings", icon: "settings" },
+  { name: "Home", path: "/", activeIcon: "home", inactiveIcon: "home-outline" },
+  { name: "Library", path: "/library", activeIcon: "albums", inactiveIcon: "albums-outline" },
+  { name: "Search", path: "/search", activeIcon: "search", inactiveIcon: "search-outline" },
+  { name: "Settings", path: "/settings", activeIcon: "options", inactiveIcon: "options-outline" },
 ];
 
 export default function PersistentTabBar() {
@@ -45,9 +49,7 @@ export default function PersistentTabBar() {
       style={style.wrapper} 
       onLayout={(e) => {
         const newHeight = e.nativeEvent.layout.height;
-        console.log("[PersistentTabBar] onLayout fired. newHeight:", newHeight, "currentHeight:", tabBarHeight);
         if (Math.abs(newHeight - tabBarHeight) > 1) {
-          console.log("[PersistentTabBar] State update triggered!");
           setTabBarHeight(newHeight);
         }
       }}
@@ -55,28 +57,22 @@ export default function PersistentTabBar() {
       <View style={[style.content, { maxWidth: contentMaxWidth }]}>
         <NowPlayingBar withSafeArea={false} />
         
-        <View style={[style.tabBar, { paddingBottom: insets.bottom }]}>
+        <View style={[style.tabBar, { paddingBottom: insets.bottom || 8 }]}>
           {TABS.map((tab) => {
             const isActive = pathname === tab.path || (tab.path !== "/" && pathname.startsWith(tab.path));
             return (
               <TouchableOpacity
                 key={tab.name}
-                style={style.tabButton}
+                style={[style.tabButton, isActive && style.tabButtonActive]}
                 onPress={() => handleTabPress(tab.path)}
                 activeOpacity={0.7}
               >
                 <Ionicons
-                  name={tab.icon}
-                  size={baseSize * 1.5}
-                  color={isActive ? theme.colors.accent.primary : theme.colors.text.secondary}
+                  name={isActive ? tab.activeIcon : tab.inactiveIcon}
+                  size={24}
+                  color={isActive ? theme.colors.accent.primary : theme.colors.text.mutedMetadata}
                 />
-                <Text
-                  style={[
-                    style.tabLabel,
-                    { fontSize: baseSize * 0.7 },
-                    { color: isActive ? theme.colors.accent.primary : theme.colors.text.secondary },
-                  ]}
-                >
+                <Text style={[style.tabLabel, { color: isActive ? theme.colors.text.primary : theme.colors.text.mutedMetadata }]}>
                   {tab.name}
                 </Text>
               </TouchableOpacity>
@@ -105,18 +101,24 @@ const style = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: theme.colors.bg.surface,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.05)",
+    borderTopColor: theme.colors.border.default,
     paddingTop: 8,
-    paddingHorizontal: 16,
     minHeight: 56,
   },
   tabButton: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 4,
+    marginHorizontal: 8,
+    borderRadius: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: hexToRgba(theme.colors.accent.primary, 0.1),
   },
   tabLabel: {
-    marginTop: 4,
+    marginTop: 2,
+    fontSize: 10,
     fontWeight: "500",
   },
 });

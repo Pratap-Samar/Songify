@@ -111,7 +111,7 @@ export default function NowPlayingBar({
             <Ionicons name="play-skip-back" size={24} color={theme.colors.text.primary} />
           </PressableScale>
           <PressableScale onPress={(e) => handleAction(e, togglePlayPause)} style={style.playButton} hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}>
-            <Ionicons name={isPlaying ? "pause" : "play"} size={28} color={theme.colors.accent.primary} />
+            <Ionicons name={isPlaying ? "pause" : "play"} size={32} color={theme.colors.accent.primary} />
           </PressableScale>
           <PressableScale onPress={(e) => handleAction(e, skipToNext)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="play-skip-forward" size={24} color={theme.colors.text.primary} />
@@ -127,7 +127,7 @@ export default function NowPlayingBar({
 
 const style = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.bg.surface,
+    backgroundColor: theme.colors.bg.elevated,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border.default,
     shadowColor: '#000',
@@ -170,12 +170,12 @@ const style = StyleSheet.create({
   },
   title: {
     color: theme.colors.text.primary,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
   },
   artist: {
-    color: theme.colors.text.muted,
-    fontSize: 12,
+    color: theme.colors.text.metadata,
+    fontSize: 11,
     marginTop: 2,
   },
   collectionTitle: {

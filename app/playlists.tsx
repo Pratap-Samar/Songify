@@ -37,7 +37,7 @@ export default function PlaylistsScreen() {
           onSubmitEditing={handleCreate}
         />
         <TouchableOpacity style={style.createBtn} onPress={handleCreate}>
-          <Ionicons name="add" size={22} color={theme.colors.text.onPrimary} />
+          <Ionicons name="add" size={24} color={theme.colors.text.onPrimary} />
         </TouchableOpacity>
       </View>
       <FlatList
@@ -53,7 +53,7 @@ export default function PlaylistsScreen() {
             <View style={style.itemLeft}>
               {item.isSystem ? (
                 <View style={[style.playlistArt, { backgroundColor: theme.colors.bg.surface }]}>
-                  <Ionicons name="heart" size={24} color={theme.colors.accent.like} />
+                  <Ionicons name="heart" size={24} color={theme.colors.accent.likeBold} />
                 </View>
               ) : (
                 <View style={[style.playlistArt, { backgroundColor: theme.colors.bg.surface }]}>
@@ -136,7 +136,7 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   itemTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
     color: theme.colors.text.primary,
   },

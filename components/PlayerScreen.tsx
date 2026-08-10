@@ -5,8 +5,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { PressableScale } from "./PressableScale";
 import { hexToRgba } from "@/lib/colorUtils";
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
-import { Animated } from "react-native";
+import { Animated, StyleSheet as RNStyleSheet } from "react-native";
+import { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { theme } from "@/constants/theme";
 import { useActiveTrack, usePlaybackProgress, usePlaybackControls, usePlaybackSession } from "@/hooks/usePlaybackState";
 import { seekTo } from "@/lib/track-player";
@@ -28,7 +30,6 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious, repeatMode, toggleRepeatMode } = usePlaybackControls();
   const { openLikeModal, isLiked } = useLikeModal();
   const liked = track ? isLiked(track.videoId) : false;
-
   // ── Download state (mock) ───────────────────────────────────────
   const [downloadState, setDownloadState] = useState<'none' | 'downloading' | 'downloaded'>('none');
 
@@ -94,15 +95,24 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   // Compact layout adjustments for smaller screens
   const isCompact = screenHeight < 700;
 
+
+
   // ── Render ──────────────────────────────────────────────────────
   return (
-    <LinearGradient 
-      colors={[hexToRgba(theme.colors.accent.primary, 0.15), theme.colors.bg.page, theme.colors.bg.page]}
-      locations={[0, 0.4, 1]}
-      style={style.container}
-    >
+    <View style={[style.container, { backgroundColor: theme.colors.bg.page }]}>
+      {track?.thumbnailUrl && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <Image
+            source={{ uri: track.thumbnailUrl.replace("w120-h120", "w600-h600") }}
+            style={StyleSheet.absoluteFillObject}
+            blurRadius={90}
+            contentFit="cover"
+          />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.bg.page, opacity: 0.90 }]} />
+        </View>
+      )}
       <View style={[style.header, isCompact && { paddingTop: 24, paddingBottom: 8 }]}>
-        <PressableScale onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={style.iconButton}>
+        <PressableScale onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={style.iconButton} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons name="chevron-down" size={32} color={theme.colors.text.primary} />
         </PressableScale>
         <View style={style.headerCenter}>
@@ -132,17 +142,17 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
           </View>
         ) : (
           <View style={style.playerLayout}>
-            <View style={[style.artworkShadowContainer, { marginBottom: isCompact ? 48 : 96 }]}>
-              <Animated.View style={[style.artworkWrapper, { width: artworkSize, height: artworkSize, borderColor: interpolatedBorderColor }]}>
-                {track?.thumbnailUrl && (
-                  <Image
-                    source={{ uri: track.thumbnailUrl }}
-                    style={style.artwork}
-                    cachePolicy="disk" contentFit="cover" transition={150}
-                  />
-                )}
-              </Animated.View>
-            </View>
+              <View style={[style.artworkShadowContainer, { marginBottom: isCompact ? 48 : 96 }]}>
+                <Animated.View style={[style.artworkWrapper, { width: artworkSize, height: artworkSize, borderColor: interpolatedBorderColor }]}>
+                  {track?.thumbnailUrl && (
+                    <Image
+                      source={{ uri: track.thumbnailUrl.replace("w120-h120", "w600-h600") }}
+                      style={style.artwork}
+                      cachePolicy="disk" contentFit="cover" transition={150}
+                    />
+                  )}
+                </Animated.View>
+              </View>
             <View style={style.bottomSection}>
               <View style={style.titleRow}>
                 <View style={style.textWrapper}>
@@ -174,9 +184,6 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                       />
                     )}
                   </PressableScale>
-                  <PressableScale style={style.downloadBtn} onPress={() => { /* options */ }}>
-                    <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text.primary} />
-                  </PressableScale>
                 </View>
               </View>
 
@@ -204,45 +211,78 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
               </View>
 
               <View style={[style.controls, isCompact && { marginTop: 24, marginBottom: 16 }]}>
-                <PressableScale onPress={toggleRepeatMode} style={style.secondaryBtn}>
+                <PressableScale 
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    toggleRepeatMode();
+                  }} 
+                  style={[style.secondaryBtn, repeatMode !== 'off' && style.activePill]} 
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <Ionicons 
-                    name="repeat" 
+                    name={repeatMode === 'track' ? "repeat" : "repeat"} 
                     size={28} 
-                    color={theme.colors.accent.like} 
-                    style={{ 
-                      opacity: repeatMode === 'off' ? 0.5 : 1,
-                      textShadowColor: theme.colors.accent.like,
+                    color={repeatMode !== 'off' ? theme.colors.text.primary : theme.colors.text.secondary} 
+                    style={repeatMode !== 'off' ? {
+                      textShadowColor: theme.colors.accent.secondary,
                       textShadowRadius: 1,
                       textShadowOffset: { width: 0.5, height: 0.5 }
-                    }}
+                    } : undefined}
                   />
-                  {repeatMode === 'track' && <Text style={[style.repeatOneBadge, { color: theme.colors.accent.like }]}>1</Text>}
-                  {repeatMode !== 'off' && <View style={[style.repeatDot, { backgroundColor: theme.colors.accent.like }]} />}
+                  {repeatMode === 'track' && <Text style={[style.repeatOneBadge, { color: theme.colors.text.primary }]}>1</Text>}
                 </PressableScale>
                 
-                <PressableScale onPress={skipToPrevious}>
+                <PressableScale 
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    skipToPrevious();
+                  }} 
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <Ionicons name="play-skip-back" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
                 </PressableScale>
                 
-                <PressableScale onPress={togglePlayPause} style={[style.playBtn, isCompact && { width: 64, height: 64, borderRadius: 32 }]}>
+                <PressableScale 
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    togglePlayPause();
+                  }} 
+                  style={[style.playBtn, isCompact && { width: 64, height: 64, borderRadius: 32 }, { overflow: 'hidden', backgroundColor: theme.colors.accent.primary }]} 
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <Ionicons
                     name={isPlaying ? "pause" : "play"}
                     size={isCompact ? 36 : 42}
                     color={theme.colors.text.onPrimary}
-                    style={{ marginLeft: isPlaying ? 0 : 4 }}
+                    style={{ marginLeft: isPlaying ? 0 : 4, zIndex: 1 }}
                   />
                 </PressableScale>
                 
-                <PressableScale onPress={skipToNext}>
+                <PressableScale 
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    skipToNext();
+                  }} 
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <Ionicons name="play-skip-forward" size={isCompact ? 36 : 42} color={theme.colors.text.primary} />
                 </PressableScale>
                 
-                <PressableScale onPress={() => track && openLikeModal(track)} style={style.secondaryBtn}>
+                <PressableScale 
+                  onPress={() => {
+                    if (track) {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      openLikeModal(track);
+                    }
+                  }} 
+                  style={style.secondaryBtn} 
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <Ionicons 
                     name={liked ? "heart" : "heart-outline"} 
                     size={28} 
-                    color={liked ? theme.colors.accent.like : theme.colors.text.secondary} 
-                    style={liked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
+                    color={liked ? theme.colors.accent.likeBold : theme.colors.text.secondary} 
+                    style={liked ? { textShadowColor: theme.colors.accent.likeBold, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 } : {}}
                   />
                 </PressableScale>
               </View>
@@ -250,7 +290,7 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
           </View>
         )}
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -273,7 +313,7 @@ const style = StyleSheet.create({
   },
   headerTitle: {
     color: theme.colors.text.primary,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 1,
@@ -284,7 +324,7 @@ const style = StyleSheet.create({
   },
   headerCollectionTitle: {
     color: theme.colors.text.secondary,
-    fontSize: 14,
+    fontSize: 13,
     marginTop: 6,
     maxWidth: 220,
   },
@@ -308,10 +348,9 @@ const style = StyleSheet.create({
     borderRadius: 16,
   },
   artworkWrapper: {
-    padding: 0,
     borderRadius: 16,
     borderWidth: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   artwork: {
     width: "100%",
@@ -348,9 +387,8 @@ const style = StyleSheet.create({
     marginBottom: 6,
   },
   artist: {
-    color: theme.colors.text.muted,
-    fontSize: 18,
-    fontWeight: "500",
+    fontSize: 16,
+    color: theme.colors.text.metadata,
   },
   seekContainer: {
     alignSelf: "stretch",
@@ -395,9 +433,9 @@ const style = StyleSheet.create({
     marginTop: 8,
   },
   timeText: {
-    color: theme.colors.text.muted,
     fontSize: 12,
-    fontVariant: ["tabular-nums"],
+    color: theme.colors.text.metadata,
+    fontVariant: ['tabular-nums'],
   },
   controls: {
     flexDirection: "row",
@@ -418,13 +456,17 @@ const style = StyleSheet.create({
   },
   secondaryBtn: {
     padding: 8,
+    borderRadius: 24,
     position: "relative",
+  },
+  activePill: {
+    backgroundColor: hexToRgba(theme.colors.accent.secondary, 0.2),
   },
   repeatOneBadge: {
     position: "absolute",
     top: 10,
     right: 5,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: "bold",
     color: theme.colors.accent.primary,
   },
@@ -444,7 +486,7 @@ const style = StyleSheet.create({
   },
   errorTitle: {
     color: theme.colors.text.primary,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700",
     marginTop: 16,
   },

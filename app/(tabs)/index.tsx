@@ -7,8 +7,12 @@ import { useCallback } from "react";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import { useHistory } from "@/lib/useHistory";
+import { hexToRgba } from "@/lib/colorUtils";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import { WebLineLoading } from "@/components/WebLineLoading";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 import { PressableScale } from "@/components/PressableScale";
+import { useActiveTrack } from "@/hooks/usePlaybackState";
 
 export default function HomeTab() {
   const router = useRouter();
@@ -24,8 +28,23 @@ export default function HomeTab() {
     }, [fetchHistory])
   );
 
+  const { track: activeTrack } = useActiveTrack();
+  const ambientArtwork = activeTrack?.thumbnailUrl || history[0]?.thumbnailUrl;
+
   return (
     <View style={style.container}>
+      {ambientArtwork && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <Image
+            source={{ uri: ambientArtwork }}
+            style={StyleSheet.absoluteFillObject}
+            blurRadius={90}
+            contentFit="cover"
+          />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.bg.page, opacity: 0.85 }]} />
+        </View>
+      )}
+      {loading && <WebLineLoading />}
       <ScrollView style={{ flex: 1, width: "100%" }} contentContainerStyle={{ alignItems: "center", paddingBottom: tabBarHeight + 20 }}>
         <View style={[style.content, { maxWidth: contentMaxWidth, padding: spacing }]}>
           <View style={style.topRow}>
@@ -41,8 +60,16 @@ export default function HomeTab() {
           <Text style={[style.header, { fontSize: titleSize, marginTop: spacing * 1.5 }]}>Continue Listening</Text>
           
           {loading ? (
-            <View style={style.emptyContainer}>
-              <Text style={[style.emptyText, { fontSize: baseSize }]}>Loading...</Text>
+            <View style={style.historyList}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <View key={i} style={style.historyCard}>
+                  <SkeletonLoader width={56} height={56} borderRadius={8} />
+                  <View style={[style.cardMeta, { paddingLeft: 16 }]}>
+                    <SkeletonLoader width="70%" height={16} style={{ marginBottom: 8 }} />
+                    <SkeletonLoader width="40%" height={14} />
+                  </View>
+                </View>
+              ))}
             </View>
           ) : history.length === 0 ? (
             <View style={style.emptyContainer}>
@@ -104,36 +131,22 @@ const style = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: theme.colors.bg.row,
+    backgroundColor: theme.colors.bg.surface,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 48,
     gap: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
   },
   placeholderIcon: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: theme.colors.bg.row,
+    backgroundColor: theme.colors.bg.surface,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
   },
   searchText: {
-    color: theme.colors.text.muted,
+    color: theme.colors.text.metadata,
   },
   header: {
     fontWeight: "bold",
@@ -146,7 +159,7 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   emptyText: {
-    color: theme.colors.text.muted,
+    color: theme.colors.text.metadata,
     textAlign: "center",
   },
   historyList: {
@@ -155,22 +168,15 @@ const style = StyleSheet.create({
   historyCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: theme.colors.bg.row,
+    backgroundColor: theme.colors.bg.surface,
     borderRadius: 12,
     padding: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
   },
   cardThumbnail: {
     width: 56,
     height: 56,
     borderRadius: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: theme.colors.bg.page,
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
@@ -190,6 +196,6 @@ const style = StyleSheet.create({
     marginBottom: 4,
   },
   cardArtist: {
-    color: theme.colors.text.muted,
+    color: theme.colors.text.metadata,
   },
 });

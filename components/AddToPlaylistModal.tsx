@@ -76,7 +76,7 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
           <LinearGradient colors={[theme.colors.bg.surface, theme.colors.bg.page]} style={style.gradientBg}>
             <View style={style.header}>
               <Text style={style.title}>Add to Playlist</Text>
-              <PressableScale onPress={onClose}>
+              <PressableScale onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Ionicons name="close" size={24} color={theme.colors.text.primary} />
               </PressableScale>
             </View>
@@ -111,13 +111,13 @@ export default function AddToPlaylistModal({ visible, track, onClose }: AddToPla
                     {isLikedSongs ? (
                       <Ionicons 
                         name={isSelected ? "heart" : "heart-outline"} 
-                        size={22} 
+                        size={24} 
                         color={isSelected ? theme.colors.accent.primary : theme.colors.text.secondary} 
                       />
                     ) : (
                       <Ionicons 
                         name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
-                        size={22} 
+                        size={24} 
                         color={isSelected ? theme.colors.accent.primary : theme.colors.text.secondary} 
                       />
                     )}
@@ -196,7 +196,7 @@ const style = StyleSheet.create({
     alignItems: "center",
   },
   createBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: theme.colors.text.primary,
   },
@@ -224,7 +224,7 @@ const style = StyleSheet.create({
     backgroundColor: theme.colors.accent.primary + "10",
   },
   itemTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "500",
     color: theme.colors.text.primary,
   },

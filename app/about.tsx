@@ -50,7 +50,7 @@ const style = StyleSheet.create({
     gap: 16,
     backgroundColor: theme.colors.bg.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    borderBottomColor: theme.colors.border.default,
   },
   backBtn: {
     padding: 4,

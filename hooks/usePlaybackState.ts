@@ -112,14 +112,22 @@ export function usePlaybackSession() {
       await initDb();
       const saved = await getSavedPlaybackSession();
       if (saved) {
+        const { getAudioProxyUrl } = await import('@/lib/api');
         const { setPlaybackSession } = await import('@/lib/playback-session');
+        const sanitizedQueue = saved.queue.map(track => ({
+          ...track,
+          streamUrl: track.streamUrl.includes('/proxy/audio/') 
+            ? track.streamUrl 
+            : getAudioProxyUrl(track.videoId)
+        }));
+
         setPlaybackSession(
           {
             source: saved.source,
             collectionId: saved.collectionId,
             collectionTitle: saved.collectionTitle,
           },
-          saved.queue,
+          sanitizedQueue,
           saved.currentIndex
         );
       }

@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   searchInput: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: theme.colors.bg.row,
     color: theme.colors.text.primary,
     padding: 12,
     borderRadius: 8,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   searchResultItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    borderBottomColor: theme.colors.border.default,
   },
   searchResultTitle: {
     color: theme.colors.text.primary,

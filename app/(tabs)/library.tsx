@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StyleSheet, Text, TextInput, View, ScrollView } from "react-native";
+import { StyleSheet, Text, TextInput, View, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -99,7 +99,19 @@ export default function LibraryTab() {
                       </View>
                     </View>
                     {!item.isSystem && (
-                      <PressableScale onPress={() => remove(item.id)} style={style.deleteBtn}>
+                      <PressableScale 
+                        onPress={() => {
+                          Alert.alert(
+                            "Delete Playlist",
+                            "Are you sure you want to delete this playlist?",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Delete", style: "destructive", onPress: () => remove(item.id) },
+                            ]
+                          );
+                        }} 
+                        style={style.deleteBtn}
+                      >
                         <Ionicons name="trash" size={18} color={theme.colors.text.secondary} />
                       </PressableScale>
                     )}

@@ -1,31 +1,43 @@
 export const theme = {
   colors: {
     bg: {
-      page: "#1a1b26",
-      surface: "#24283b",
-      row: "#272b3d",
+      page: "#0B0B14",
+      surface: "#151522",
+      elevated: "#202033",
+      row: "transparent",
     },
     text: {
-      primary: "#c0caf5",
-      secondary: "#7aa2f7",
-      muted: "#6b7394",
-      onPrimary: "#4a2c14",
+      primary: "#F5F3F5",
+      secondary: "#B8B5C2",
+      metadata: "#8F9BB5",
+      mutedMetadata: "#6F778B",
+      muted: "#777486",
+      onPrimary: "#FFFFFF",
     },
     accent: {
-      primary: "#ff9e64",
-      like: "#ff3366",
-      status: "#9ece6a",
-      secondary: "#bb9af7",
-      link: "#7dcfff",
-      premium: "#e0af68",
+      primary: "#E52B4D",
+      deep: "#A91E3B",
+      blue: "#2878D4",
+      blueBright: "#52A7FF",
+      violet: "#7046C7",
+      magenta: "#C83D9E",
+      like: "#E52B4D",
+      likeBold: "#E52B4D",
+      status: "#34C759",
+      secondary: "#202033",
+      link: "#52A7FF",
+      premium: "#FFD60A",
     },
     disabled: {
-      bg: "#2a2e42",
-      text: "#565f89",
+      bg: "#202033",
+      text: "#777486",
     },
     border: {
-      default: "#3a3f5c",
-      strong: "#4a5073",
+      default: "#282840",
+      strong: "#3B3B5E",
+    },
+    gradients: {
+      webShot: ['#151522', '#0B0B14'] as const
     }
   },
 };

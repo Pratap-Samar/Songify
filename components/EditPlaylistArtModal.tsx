@@ -13,10 +13,10 @@ const COLORS = [
   theme.colors.accent.secondary,
   theme.colors.accent.link,
   theme.colors.accent.premium,
+  theme.colors.accent.likeBold,
   theme.colors.accent.like,
   theme.colors.accent.status,
   theme.colors.text.primary,
-  "#f7768e", // Tokyo Night red
   "#000000", // Black
   theme.colors.bg.row, // Background
   "#ff8c00", // Dark Orange
@@ -105,7 +105,7 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
             >
               <View style={style.header}>
                 <Text style={style.title}>Edit Playlist Art</Text>
-                <PressableScale onPress={onClose} style={style.closeBtn}>
+                <PressableScale onPress={onClose} style={style.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                   <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
                 </PressableScale>
               </View>
@@ -127,7 +127,7 @@ export default function EditPlaylistArtModal({ visible, onClose, playlist }: Edi
                   >
                     <Ionicons 
                       name={i as any} 
-                      size={28} 
+                      size={32} 
                       color={icon === i ? theme.colors.text.primary : theme.colors.text.secondary} 
                     />
                   </PressableScale>
@@ -200,7 +200,7 @@ const style = StyleSheet.create({
     marginVertical: 16,
   },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: theme.colors.text.primary,
     marginBottom: 12,
@@ -252,7 +252,7 @@ const style = StyleSheet.create({
   },
   saveButtonText: {
     color: theme.colors.text.onPrimary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
   },
 });
