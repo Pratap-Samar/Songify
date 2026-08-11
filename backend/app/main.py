@@ -358,51 +358,6 @@ def playback(video_id: str) -> PlaybackResponse:
     )
 
 
-# ── Resolved-stream URL cache ──────────────────────────────────────
-# Key: video_id.  Value: (timestamp, resolved_url, content_type, content_length)
-# Keeps yt-dlp resolutions hot for 5 minutes so Range-seek requests
-# during playback don't re-trigger a full extraction.
-_STREAM_CACHE_MAX_ENTRIES = 32
-_stream_cache: OrderedDict[
-    str, tuple[float, str, dict[str, str], str | None, int | None]
-] = OrderedDict()
-_STREAM_CACHE_TTL = 300  # seconds
-
-
-def _get_cached(
-    video_id: str,
-) -> tuple[str, dict[str, str], str | None, int | None, float] | None:
-    entry = _stream_cache.get(video_id)
-    if entry is None:
-        return None
-    ts, url, headers, ct, cl = entry
-    age = time.monotonic() - ts
-    if age > _STREAM_CACHE_TTL:
-        del _stream_cache[video_id]
-        return None
-    _stream_cache.move_to_end(video_id)
-    return url, headers, ct, cl, age
-
-
-def _set_cached(
-    video_id: str,
-    url: str,
-    headers: dict[str, str],
-    ct: str | None,
-    cl: int | None,
-) -> None:
-    _stream_cache.pop(video_id, None)
-    _stream_cache[video_id] = (time.monotonic(), url, headers, ct, cl)
-    while len(_stream_cache) > _STREAM_CACHE_MAX_ENTRIES:
-        _stream_cache.popitem(last=False)
-
-
-class VideoLock:
-    def __init__(self):
-        self.lock = asyncio.Lock()
-        self.refcount = 0
-
-_resolution_locks: dict[str, VideoLock] = {}
 
 import logging
 import uuid
@@ -421,33 +376,19 @@ async def prefetch_audio(video_id: str):
     if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
 
-    cached = _get_cached(video_id)
-    if cached is not None:
-        logger.info("[PREFETCH] video_id=%s cache=hit age=%.2fs", video_id, cached[4])
-        return {"cached": True}
+    # Caching has been disabled for V1 reliability. Prefetch is a no-op.
+    return {"cached": False}
 
-    if video_id not in _resolution_locks:
-        _resolution_locks[video_id] = VideoLock()
-    vlock = _resolution_locks[video_id]
-    vlock.refcount += 1
-    try:
-        async with vlock.lock:
-            cached = _get_cached(video_id)
-            if cached is not None:
-                logger.info("[PREFETCH] video_id=%s cache=hit-after-wait", video_id)
-                return {"cached": True}
-
-            result = await run_in_threadpool(resolve_stream_url, video_id)
-            if result is None:
-                raise HTTPException(status_code=404, detail="No compatible stream available")
-            stream_url, upstream_headers, _ = result
-            _set_cached(video_id, stream_url, upstream_headers, None, None)
-            logger.info("[PREFETCH] video_id=%s cache=stored", video_id)
-            return {"cached": False}
-    finally:
-        vlock.refcount -= 1
-        if vlock.refcount == 0:
-            _resolution_locks.pop(video_id, None)
+@app.get("/resolve/{video_id}")
+async def resolve_raw_stream(video_id: str):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+        raise HTTPException(status_code=400, detail="Invalid video ID")
+        
+    result = await run_in_threadpool(resolve_stream_url, video_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No compatible stream available")
+    stream_url, upstream_headers, _ = result
+    return {"url": stream_url, "headers": upstream_headers}
 
 @app.api_route("/proxy/audio/{video_id}", methods=["GET", "HEAD", "OPTIONS"])
 async def proxy_audio(video_id: str, request: Request):
@@ -482,37 +423,13 @@ async def proxy_audio(video_id: str, request: Request):
     if request.method in ("HEAD", "OPTIONS"):
         return Response(headers={**cors_headers, "Content-Length": "0"})
 
-    # ── Resolve the upstream stream URL (cached for 5 min) ──────────
-    cached = _get_cached(video_id)
-    if cached is not None:
-        stream_url, upstream_headers, upstream_ct, upstream_cl, cache_age = cached
-        logger.info("[%s] Cache hit age=%.2fs", session_id, cache_age)
-    else:
-        logger.info("[%s] Cache miss", session_id)
-        if video_id not in _resolution_locks:
-            _resolution_locks[video_id] = VideoLock()
-        vlock = _resolution_locks[video_id]
-        vlock.refcount += 1
-        
-        try:
-            async with vlock.lock:
-                # Double-check cache inside lock
-                cached = _get_cached(video_id)
-                if cached is not None:
-                    stream_url, upstream_headers, upstream_ct, upstream_cl, cache_age = cached
-                    logger.info(f"[{session_id}] Cache HIT AFTER WAIT")
-                else:
-                    result = await run_in_threadpool(resolve_stream_url, video_id)
-                    if result is None:
-                        raise HTTPException(status_code=404, detail="No compatible stream available")
-                    stream_url, upstream_headers, _ = result
-                    upstream_ct = None
-                    upstream_cl = None
-                    _set_cached(video_id, stream_url, upstream_headers, upstream_ct, upstream_cl)
-        finally:
-            vlock.refcount -= 1
-            if vlock.refcount == 0:
-                _resolution_locks.pop(video_id, None)
+    # ── Resolve the upstream stream URL ──────────
+    result = await run_in_threadpool(resolve_stream_url, video_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No compatible stream available")
+    stream_url, upstream_headers, _ = result
+    upstream_ct = None
+    upstream_cl = None
 
     # ── Merge client Range header with upstream headers ──────────────
     range_header = request.headers.get("range")
@@ -570,8 +487,6 @@ async def proxy_audio(video_id: str, request: Request):
     if upstream.status_code == 200:
         cl_str = upstream.headers.get("content-length")
         upstream_cl = int(cl_str) if cl_str and cl_str.isdigit() else upstream_cl
-        
-    _set_cached(video_id, stream_url, upstream_headers, upstream_ct, upstream_cl)
 
     # Build Content-Range for 206 responses
     status_code = upstream.status_code
