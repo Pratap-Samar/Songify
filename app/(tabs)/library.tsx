@@ -222,7 +222,7 @@ const style = StyleSheet.create({
     borderColor: "transparent",
   },
   chipActive: {
-    backgroundColor: theme.colors.accent.primary,
+    backgroundColor: theme.colors.accent.blue,
   },
   chipText: {
     color: theme.colors.text.primary,
