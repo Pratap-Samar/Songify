@@ -380,6 +380,7 @@ export async function playStandaloneTrack(track: PlaybackTrack, playId: number) 
   const safeTrack = { ...track, title: track.title || "Unknown Title", artists: track.artists || [] } as unknown as import("./music").Track;
   
 
+  addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
   logger.debug(`[PLAY_REQUEST] Standalone playId: ${playId} (latest: ${latestPlayId}) videoId: ${track.videoId}`);
   
   try {

@@ -270,6 +270,20 @@ export default function PlaylistDetailScreen() {
             color={theme.colors.text.secondary}
           />
         </PressableScale>
+
+        <PressableScale 
+          style={style.actionButton} 
+          onPress={handleDeletePlaylist} 
+          disabled={!!playlist.isSystem} 
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons
+            name="heart"
+            size={24}
+            color={playlist.isSystem ? theme.colors.text.secondary : theme.colors.accent.likeBold}
+            style={!playlist.isSystem ? { textShadowColor: "#ffffff", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : { opacity: 0.3 }}
+          />
+        </PressableScale>
       </View>
     </View>
   );
@@ -316,18 +330,7 @@ export default function PlaylistDetailScreen() {
         <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
       </PressableScale>
 
-      <PressableScale
-        style={style.absoluteDelete}
-        onPress={handleDeletePlaylist}
-        disabled={!!playlist.isSystem}
-      >
-        <Ionicons 
-          name="trash" 
-          size={24} 
-          color={playlist.isSystem ? theme.colors.text.secondary : theme.colors.accent.status} 
-          style={{ opacity: playlist.isSystem ? 0.3 : 1 }}
-        />
-      </PressableScale>
+      
 
       <Animated.FlatList
         data={playlistTracks}

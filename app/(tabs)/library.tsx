@@ -111,7 +111,7 @@ export default function LibraryTab() {
                         }} 
                         style={style.deleteBtn}
                       >
-                        <Ionicons name="trash" size={18} color={theme.colors.text.secondary} />
+                        <Ionicons name="checkmark-circle" size={24} color={theme.colors.accent.primary} />
                       </PressableScale>
                     )}
                   </PressableScale>
@@ -155,7 +155,19 @@ export default function LibraryTab() {
                           </Text>
                         </View>
                       </View>
-                      <PressableScale onPress={() => removeAlbum(album.id)} style={style.deleteBtn}>
+                      <PressableScale 
+                          onPress={() => {
+                            Alert.alert(
+                              "Remove Album",
+                              "Are you sure you want to remove this album from your library?",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Remove", style: "destructive", onPress: () => removeAlbum(album.id) },
+                              ]
+                            );
+                          }} 
+                          style={style.deleteBtn}
+                        >
                         <Ionicons name="checkmark-circle" size={24} color={theme.colors.accent.primary} />
                       </PressableScale>
                     </PressableScale>
