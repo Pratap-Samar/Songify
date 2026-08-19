@@ -10,7 +10,7 @@ import {
   type PlaybackSessionInput,
   type PlaybackTrack,
 } from "./playback-session";
-import { prefetchAudioUrl } from "./api";
+
 
 const isWeb = Platform.OS === "web";
 
@@ -30,60 +30,57 @@ export function addShuffleListener(cb: (s: boolean) => void) {
 }
 
 export async function toggleShuffleMode() {
-  isShuffled = !isShuffled;
-  shuffleListeners.forEach((cb) => cb(isShuffled));
-  if (isWeb) return;
+    isShuffled = !isShuffled;
+    shuffleListeners.forEach((cb) => cb(isShuffled));
+    if (isWeb) return;
 
-  const currentSession = getPlaybackSession();
-  if (!currentSession) return;
+    const currentSession = getPlaybackSession();
+    if (!currentSession || !currentSession.queue || currentSession.queue.length <= 1) return;
 
-  const activeIndex = await TrackPlayer.getActiveTrackIndex();
-  if (activeIndex === undefined || activeIndex === null) return;
-  const queue = await TrackPlayer.getQueue();
-  if (!queue || queue.length === 0) return;
+    const activeIndex = await TrackPlayer.getActiveTrackIndex();
+    if (activeIndex === undefined || activeIndex === null) return;
+    const queue = await TrackPlayer.getQueue();
+    if (!queue || queue.length === 0) return;
 
-  const activeTrack = queue[activeIndex];
-  if (!activeTrack) return;
+    const activeTrack = queue[activeIndex];
+    if (!activeTrack) return;
 
-  // Find active track in original session queue
-  const origIdx = currentSession.queue.findIndex(t => t.videoId === activeTrack.id);
+    const currentTrackId = activeTrack.id;
 
-  if (isShuffled) {
-    // Remove upcoming tracks
+    if (isShuffled) {
+      const originalQueue = currentSession.originalQueue || [...currentSession.queue];
+      let newQueue = [...originalQueue];
+      
+      const currentTrackIndex = newQueue.findIndex(t => t.videoId === currentTrackId);
+      const currentTrackObj = currentTrackIndex !== -1 ? newQueue.splice(currentTrackIndex, 1)[0] : null;
+      
+      for (let i = newQueue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
+      }
+      
+      if (currentTrackObj) {
+        newQueue.unshift(currentTrackObj);
+      }
+      
+      import('./playback-session').then(({ updatePlaybackSessionQueue }) => {
+        updatePlaybackSessionQueue(newQueue, 0, originalQueue);
+      });
+    } else {
+      if (currentSession.originalQueue) {
+        const newQueue = [...currentSession.originalQueue];
+        const newIndex = newQueue.findIndex(t => t.videoId === currentTrackId);
+        import('./playback-session').then(({ updatePlaybackSessionQueue }) => {
+          updatePlaybackSessionQueue(newQueue, newIndex !== -1 ? newIndex : 0, undefined);
+        });
+      }
+    }
+
+    // Always clear the upcoming native queue so JIT re-resolves the next track from the newly ordered session
     const trackIndexesToRemove = queue.map((_, i) => i).slice(activeIndex + 1);
     if (trackIndexesToRemove.length > 0) {
       await TrackPlayer.remove(trackIndexesToRemove);
     }
-
-    const tracksToShuffle = origIdx !== -1 
-      ? currentSession.queue.slice(origIdx + 1).map(t => mapTrack(t as any))
-      : currentSession.queue.map(t => mapTrack(t as any));
-      
-    for (let i = tracksToShuffle.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [tracksToShuffle[i], tracksToShuffle[j]] = [tracksToShuffle[j], tracksToShuffle[i]];
-    }
-    if (tracksToShuffle.length > 0) await TrackPlayer.add(tracksToShuffle);
-  } else {
-    if (origIdx !== -1) {
-      // Remove all tracks EXCEPT the active one to fully rewrite the queue around it
-      const indexesToRemove = queue.map((_, i) => i).filter(i => i !== activeIndex);
-      if (indexesToRemove.length > 0) {
-        await TrackPlayer.remove(indexesToRemove);
-      }
-
-      const after = currentSession.queue.slice(origIdx + 1).map(t => mapTrack(t as any));
-      if (after.length > 0) {
-        await TrackPlayer.add(after);
-      }
-
-      const before = currentSession.queue.slice(0, origIdx).map(t => mapTrack(t as any));
-      if (before.length > 0) {
-        // Insert tracks before the current track at index 0
-        await TrackPlayer.add(before, 0);
-      }
-    }
-  }
 }
 
 let webQueue: (Track & { streamUrl: string })[] = [];
@@ -160,20 +157,22 @@ async function webPlay() {
 async function webPause() { getAudio().pause(); }
 
 // ── Shared helpers ────────────────────────────────────────────────
-function mapTrack(track: Track & { streamUrl: string }) {
+function mapTrack(track: Track & { streamUrl: string; _sessionIndex?: number; mimeType?: string }) {
   return {
     id: track.videoId,
-    url: track.streamUrl.includes('.mp4') ? track.streamUrl : track.streamUrl + '.mp4',
+    url: track.streamUrl,
     title: track.title,
     artist: track.artists.join(", "),
     artwork: track.thumbnailUrl ?? "",
     duration: track.durationMs ? track.durationMs / 1000 : 0,
     genre: "Music",
     type: TrackType.Default,
+    contentType: track.mimeType || 'audio/mp4',
+    _sessionIndex: track._sessionIndex,
   };
 }
 
-function unmapTrack(item: Record<string, unknown>): Track & { streamUrl: string } {
+function unmapTrack(item: Record<string, unknown>): Track & { streamUrl: string; _sessionIndex?: number } {
   if (!item) return null as unknown as Track & { streamUrl: string };
   return {
     videoId: item.id as string,
@@ -183,6 +182,7 @@ function unmapTrack(item: Record<string, unknown>): Track & { streamUrl: string 
     thumbnailUrl: (item.artwork as string) || null,
     durationMs: item.duration ? Math.floor((item.duration as number) * 1000) : null,
     album: null,
+    _sessionIndex: item._sessionIndex as number | undefined,
   };
 }
 
@@ -195,14 +195,14 @@ let queueAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleQueueAdvance(requireEndPosition: boolean) {
   if (isWeb || queueAdvanceTimer) return;
 
+  const playId = latestPlayId;
   queueAdvanceTimer = setTimeout(async () => {
     queueAdvanceTimer = null;
+    if (latestPlayId !== playId) return;
     const currentSession = getPlaybackSession();
     if (!currentSession || currentSession.queue.length === 0) return;
 
-    const activeIndex = await TrackPlayer.getActiveTrackIndex();
     const { state } = await TrackPlayer.getPlaybackState();
-    if (activeIndex !== currentSession.currentIndex) return;
 
     if (requireEndPosition || state === State.Paused) {
       const progress = await TrackPlayer.getProgress();
@@ -211,21 +211,11 @@ function scheduleQueueAdvance(requireEndPosition: boolean) {
       return;
     }
 
-    const isLastTrack = currentSession.currentIndex >= currentSession.queue.length - 1;
-    if (nativeRepeatMode === 'off' && isLastTrack) return;
-
-    const nextIndex = nativeRepeatMode === 'track'
-      ? currentSession.currentIndex
-      : isLastTrack
-        ? 0
-        : currentSession.currentIndex + 1;
-    await TrackPlayer.skip(nextIndex);
-    await TrackPlayer.play();
+    await skipToNext(true);
   }, 0);
 }
 
 export async function setupPlayer() {
-  console.warn(`[DIAGNOSTICS] [Lifecycle] ${new Date().toISOString()} - setupPlayer() EXECUTED`);
   logger.debug("[TrackPlayer] setupPlayer called. isWeb:", isWeb, "nativePlayerReady:", nativePlayerReady);
   if (isWeb) return webSetupPlayer();
   if (nativePlayerReady) return;
@@ -242,18 +232,105 @@ export async function setupPlayer() {
     logger.debug("[TrackPlayer] updateOptions succeeded. Player is ready.");
 
     TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
-      console.warn(`[PlayOp #${latestPlayId}] Event.PlaybackState | ${new Date().toISOString()} | State Changed: ${event.state}`);
-      if (event.state === State.Ended) scheduleQueueAdvance(false);
+      logger.debug(`[TrackPlayer] State: ${event.state}`);
+
+      if (isResettingQueue && (event.state === State.Ended || event.state === State.Stopped)) {
+        logger.debug(`[TrackPlayer] Ignored ${event.state} because queue is resetting`);
+        return;
+      }
+
+      if (event.state === State.Ended) return; // Handled by PlaybackQueueEnded
       else if (event.state === State.Paused) scheduleQueueAdvance(true);
+      
+      // Safe to mutate the queue for the NEXT track only when the active track is fully buffered/playing
+      if (event.state === State.Ready || event.state === State.Playing) {
+        jitEnsureNextTrackInQueue(event.state === State.Ready ? "Ready" : "Playing").catch(e => console.error("[TrackPlayer] JIT error:", e));
+      }
+    });
+
+    TrackPlayer.addEventListener(Event.PlaybackError, async (event) => {
+      logger.debug(`[TrackPlayer] PlaybackError: ${event.message}`);
+      try {
+        const index = await TrackPlayer.getActiveTrackIndex();
+        if (index === undefined || index === null) return;
+        const track = await TrackPlayer.getTrack(index);
+        
+        if (!track || !track.id) return;
+
+        // Prevent infinite loops if re-resolution fails repeatedly
+        const attempts = ((track._recoveryAttempts as number) || 0);
+        if (attempts >= 3) {
+           logger.debug(`[TrackPlayer] Track ${track.id} failed after 3 recovery attempts. Giving up.`);
+           skipToNext(true).catch(e => console.error(e));
+           return;
+        }
+
+        logger.debug(`[TrackPlayer] Attempting recovery for track ${track.id} (Attempt ${attempts + 1})...`);
+        const { resolveStreamSafely } = await import("./playback");
+        
+        const playId = latestPlayId;
+        
+        try {
+           const trackMeta = track.title ? {
+             title: track.title.toString(),
+             artist: track.artist?.toString() || 'Unknown Artist'
+           } : undefined;
+           const resolved = await resolveStreamSafely(track.id, undefined, trackMeta);
+           const newUrl = resolved.url;
+           
+           const currentSession = getPlaybackSession();
+           if (latestPlayId === playId && currentSession && currentSession.queue && currentSession.currentIndex !== undefined) {
+             // Update the session queue with the resolved URL and attempts
+             const sTrack = currentSession.queue[currentSession.currentIndex];
+             if (sTrack && sTrack.videoId === track.id) {
+               sTrack.streamUrl = newUrl;
+               sTrack.mimeType = resolved.mimeType;
+               (sTrack as any)._recoveryAttempts = attempts + 1;
+               
+               if (currentSession.source === "album" || currentSession.source === "playlist") {
+                  await _playLogicalCollectionTrack(currentSession.currentIndex, playId, attempts + 1);
+                  return;
+                }
+                // Re-play the queue from this index safely
+               await playQueue(currentSession.queue, currentSession.currentIndex, currentSession);
+               return;
+             }
+           } else {
+             logger.debug(`[TrackPlayer] Aborted recovery for ${track.id} due to session change`);
+             return;
+           }
+
+           const newTrack = { 
+               ...track, 
+               url: newUrl,
+               contentType: resolved.mimeType || 'audio/mp4',
+               _recoveryAttempts: attempts + 1 
+           };
+           // Replace track to inject the fresh URL
+           await TrackPlayer.add([newTrack], index + 1);
+           await TrackPlayer.skip(index + 1);
+           await TrackPlayer.remove([index]);
+           await TrackPlayer.play();
+        } catch (resolveError) {
+           logger.error(`[TrackPlayer] Recovery resolution failed for ${track.id}:`, resolveError);
+           if (latestPlayId === playId) {
+             // Update attempts even if it failed so we don't infinite loop if it keeps throwing PlaybackError
+             const failedTrack = { ...track, _recoveryAttempts: attempts + 1 };
+             await TrackPlayer.add([failedTrack], index + 1);
+             await TrackPlayer.skip(index + 1);
+             await TrackPlayer.remove([index]);
+           }
+        }
+      } catch (e) {
+        console.error("[TrackPlayer] Error handling fallback:", e);
+      }
     });
 
     TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async (event) => {
-      const ts = new Date().toISOString();
-      const state = await TrackPlayer.getPlaybackState();
-      const queue = await TrackPlayer.getQueue();
-      console.warn(`[PlayOp #${latestPlayId}] Event.PlaybackQueueEnded | ${ts} | FIRED! payload: ${JSON.stringify(event)}, state: ${state}, qLen: ${queue?.length ?? 0}`);
-      logger.debug("[TrackPlayer] PlaybackQueueEnded fired. Native repeat mode:", nativeRepeatMode);
-    });
+        logger.debug("[TrackPlayer] PlaybackQueueEnded fired. Native repeat mode:", nativeRepeatMode);
+        if (isResettingQueue) return;
+        await skipToNext(true).catch(e => console.error(e));
+      });
 
     nativePlayerReady = true;
     setupPromise = null;
@@ -274,16 +351,11 @@ export async function setupPlayer() {
 
 /** Ensure setupPlayer runs exactly once and all callers share the same promise */
 export async function ensureSetup() {
-  logger.debug(`[TrackPlayer] ensureSetup() called at ${new Date().toISOString()}`);
   if (nativePlayerReady) {
-    logger.debug("[TrackPlayer] ensureSetup: natively ready.");
     return;
   }
   if (!setupPromise) {
-    logger.debug("[TrackPlayer] ensureSetup: initializing new setupPromise");
     setupPromise = setupPlayer();
-  } else {
-    logger.debug("[TrackPlayer] ensureSetup: returning existing setupPromise");
   }
   return setupPromise;
 }
@@ -295,18 +367,82 @@ export function getTrackPlayer() { return TrackPlayer; }
 export { mapTrack as mapTrackToTrackPlayerItem };
 
 export function getLatestPlayId() { return latestPlayId; }
+export function incrementPlayId() { return ++latestPlayId; }
 
-class Mutex {
-  private mutex = Promise.resolve();
-  lock(): Promise<() => void> {
-    let begin: (unlock: () => void) => void = () => {};
-    this.mutex = this.mutex.then(() => new Promise(begin));
-    return new Promise((res) => {
-      begin = res;
-    });
+let isResettingQueue = false;
+
+export async function playStandaloneTrack(track: PlaybackTrack, playId: number) {
+  if (queueAdvanceTimer) {
+    clearTimeout(queueAdvanceTimer);
+    queueAdvanceTimer = null;
+  }
+  
+  logger.debug(`[TrackPlayer] playStandaloneTrack called. Active track: "${track.title}"`);
+  const safeTrack = { ...track, title: track.title || "Unknown Title", artists: track.artists || [] } as unknown as import("./music").Track;
+  addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
+
+  logger.debug(`[PLAY_REQUEST] Standalone playId: ${playId} (latest: ${latestPlayId}) videoId: ${track.videoId}`);
+  
+  try {
+    if (isWeb) {
+      await webSetupPlayer();
+      if (latestPlayId !== playId) return;
+      setPlaybackSession({ source: "track", collectionId: null, collectionTitle: null }, [track], 0);
+      await webReset();
+      webQueue = [track];
+      webQueueIndex = 0;
+      await webAdd([mapTrack({ ...track, _sessionIndex: 0 })]);
+      if (latestPlayId !== playId) return;
+      await webPlay();
+      return;
+    }
+    
+    logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Calling ensureSetup for playId: ${playId}`);
+    await ensureSetup();
+    if (latestPlayId !== playId) {
+      logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Aborting early after ensureSetup (latestPlayId: ${latestPlayId} !== ${playId})`);
+      return;
+    }
+    
+    logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Setting PlaybackSession for playId: ${playId}`);
+    setPlaybackSession({ source: "track", collectionId: null, collectionTitle: null }, [track], 0);
+    
+    try {
+      isResettingQueue = true;
+      logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Calling TrackPlayer.reset() for playId: ${playId}`);
+      await TrackPlayer.reset();
+      logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Finished TrackPlayer.reset() for playId: ${playId}`);
+    } finally {
+      isResettingQueue = false;
+    }
+    
+    if (latestPlayId !== playId) {
+      logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Aborting early after reset (latestPlayId: ${latestPlayId} !== ${playId})`);
+      return;
+    }
+    
+    logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Calling TrackPlayer.setRepeatMode(Off) for playId: ${playId}`);
+    await TrackPlayer.setRepeatMode(RepeatMode.Off);
+    const mappedTrack = mapTrack({ ...track, _sessionIndex: 0 });
+    
+    logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Calling TrackPlayer.add() for playId: ${playId}`);
+    await TrackPlayer.add([mappedTrack]);
+    
+    if (latestPlayId !== playId) {
+       logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Aborting early after add (latestPlayId: ${latestPlayId} !== ${playId})`);
+       return;
+    }
+    
+    logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Calling TrackPlayer.play() for playId: ${playId}`);
+    await TrackPlayer.play();
+    logger.debug(`[DIAGNOSTIC] playStandaloneTrack: Finished TrackPlayer.play() for playId: ${playId}`);
+  } catch (error) {
+    logger.debug(`[DIAGNOSTIC] playStandaloneTrack: EXCEPTION for playId: ${playId}: ${error}`);
+    throw error;
+  } finally {
   }
 }
-const playerMutex = new Mutex();
+
 
 export async function playQueue(
   tracks: PlaybackTrack[],
@@ -320,36 +456,52 @@ export async function playQueue(
   }
   const current = tracks[index];
   if (current) {
-    logger.debug(`[TrackPlayer] playQueue called. Active track: "${current.title}"`);
+    logger.debug(`[TrackPlayer] playQueue called. Active track: "${current.title}", Stack: ${new Error().stack}`);
     const safeTrack = { ...current, title: current.title || "Unknown Title", artists: current.artists || [] } as unknown as Track;
     addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
   }
 
   const playId = opId ?? ++latestPlayId;
+  logger.debug(`[PLAY_REQUEST]
+  playId: ${playId} (latest: ${latestPlayId})
+  videoId: ${tracks[index]?.videoId}
+  title: ${tracks[index]?.title}
+  source: ${sessionInput.source}
+  collectionId: ${sessionInput.collectionId}
+  collectionTitle: ${sessionInput.collectionTitle}
+  current PlaybackSession: ${JSON.stringify(getPlaybackSession()?.collectionTitle)}
+  timestamp: ${Date.now()}
+  caller context: ${new Error().stack}`);
   latestPlayId = playId;
 
-  const unlock = await playerMutex.lock();
-  try {
     if (isWeb) {
       await webSetupPlayer();
       if (latestPlayId !== playId) return;
+      setPlaybackSession(sessionInput, tracks, index);
       await webReset();
       webQueue = tracks;
       webQueueIndex = index;
       if (tracks[index]) {
-        await webAdd([mapTrack(tracks[index])]);
+        await webAdd([mapTrack({ ...tracks[index], _sessionIndex: index })]);
         if (latestPlayId !== playId) return;
-        setPlaybackSession(sessionInput, tracks, index);
         await webPlay();
       }
       return;
     }
     await ensureSetup();
     if (latestPlayId !== playId) return;
-    await TrackPlayer.reset();
+    setPlaybackSession(sessionInput, tracks, index);
+    
+    try {
+      isResettingQueue = true;
+      await TrackPlayer.reset();
+    } finally {
+      isResettingQueue = false;
+    }
+    
     if (latestPlayId !== playId) return;
     
-    const mappedTracks = tracks.map(mapTrack);
+    const mappedTracks = tracks.map((t, i) => mapTrack({ ...t, _sessionIndex: i }));
     
     if (sessionInput.source === "track" && nativeRepeatMode === "queue") {
       nativeRepeatMode = "off";
@@ -357,45 +509,70 @@ export async function playQueue(
     await TrackPlayer.setRepeatMode(RepeatMode.Off);
     
     const firstTrack = mappedTracks[index];
-    const otherTracksBefore = mappedTracks.slice(0, index);
-    const otherTracksAfter = mappedTracks.slice(index + 1);
 
     if (firstTrack) {
-      // Prevent TrackPlayer from timing out during yt-dlp resolution
-      // by forcing JS to wait for the backend proxy to cache the stream first.
-      await prefetchAudioUrl(firstTrack.id);
-
       await TrackPlayer.add([firstTrack]);
 
       if (latestPlayId !== playId) return;
       // Start playing immediately to avoid flashing through earlier tracks
       await TrackPlayer.play();
-
-      if (latestPlayId !== playId) return;
-      let finalAfter = otherTracksAfter;
-      if (isShuffled) {
-        finalAfter = [...otherTracksAfter];
-        for (let i = finalAfter.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [finalAfter[i], finalAfter[j]] = [finalAfter[j], finalAfter[i]];
-        }
-      }
-      if (finalAfter.length > 0) {
-        await TrackPlayer.add(finalAfter);
-      }
-      if (otherTracksBefore.length > 0) {
-        await TrackPlayer.add(otherTracksBefore, 0);
-      }
     }
-    
-    if (latestPlayId !== playId) return;
-    setPlaybackSession(sessionInput, tracks, index);
-  } finally {
-    unlock();
-  }
 }
 
-export async function skipToNext() {
+export async function skipToNext(isAutoAdvance = false) {
+  console.log(`[DIAGNOSTIC] skipToNext called. Stack:`, new Error().stack);
+  const session = getPlaybackSession();
+  if (session && (session.source === "album" || session.source === "playlist")) {
+    let nextIndex = session.currentIndex + 1;
+    if (isAutoAdvance && nativeRepeatMode === 'track') {
+      nextIndex = session.currentIndex;
+    } else if (nextIndex >= session.queue.length) {
+      if (nativeRepeatMode === 'queue') nextIndex = 0;
+      else return; // end of album
+    }
+    const playId = ++latestPlayId;
+    return _playLogicalCollectionTrack(nextIndex, playId);
+  }
+  if (session && session.source === "track") {
+    if (isAutoAdvance) {
+      if (nativeRepeatMode === 'track' || nativeRepeatMode === 'queue') {
+        if (!isWeb) {
+            const index = await TrackPlayer.getActiveTrackIndex();
+            if (index !== undefined && index !== null) {
+                const track = await TrackPlayer.getTrack(index);
+                if (track) {
+                   isResettingQueue = true;
+                   await TrackPlayer.reset();
+                   await TrackPlayer.add([track]);
+                   isResettingQueue = false;
+                   await TrackPlayer.play();
+                }
+            }
+          } else {
+            getAudio().currentTime = 0;
+            await webPlay();
+          }
+      }
+    } else {
+      if (!isWeb) {
+            const index = await TrackPlayer.getActiveTrackIndex();
+            if (index !== undefined && index !== null) {
+                const track = await TrackPlayer.getTrack(index);
+                if (track) {
+                   isResettingQueue = true;
+                   await TrackPlayer.reset();
+                   await TrackPlayer.add([track]);
+                   isResettingQueue = false;
+                   await TrackPlayer.play();
+                }
+            }
+          } else {
+            getAudio().currentTime = 0;
+            await webPlay();
+          }
+    }
+    return;
+  }
   if (isWeb) {
     if (webQueue.length === 0) return;
     if (webQueue.length === 1) {
@@ -405,7 +582,9 @@ export async function skipToNext() {
       return;
     }
     let nextIndex = webQueueIndex + 1;
-    if (nextIndex >= webQueue.length) {
+    if (isAutoAdvance && webRepeatMode === 'track') {
+      nextIndex = webQueueIndex;
+    } else if (nextIndex >= webQueue.length) {
       if (webRepeatMode === 'queue') nextIndex = 0;
       else return;
     }
@@ -426,7 +605,9 @@ export async function skipToNext() {
     const session = getPlaybackSession();
     if (session && session.queue && session.queue.length > 0) {
       let nextIndex = session.currentIndex + 1;
-      if (nextIndex >= session.queue.length) {
+      if (isAutoAdvance && nativeRepeatMode === 'track') {
+        nextIndex = session.currentIndex;
+      } else if (nextIndex >= session.queue.length) {
         if (nativeRepeatMode === 'queue') nextIndex = 0;
         else return;
       }
@@ -439,17 +620,60 @@ export async function skipToNext() {
     }
   }
 
-  if (queue && queue.length === 1) {
-    return TrackPlayer.seekTo(0);
+  if (index !== undefined && queue && index >= queue.length - 1) {
+    const session = getPlaybackSession();
+    if (session && session.queue && session.queue.length > 0) {
+      let nextIndex = session.currentIndex + 1;
+      if (isAutoAdvance && nativeRepeatMode === 'track') {
+        nextIndex = session.currentIndex;
+      } else if (nextIndex >= session.queue.length) {
+        if (nativeRepeatMode === 'queue') nextIndex = 0;
+        else return;
+      }
+      return playQueue(session.queue, nextIndex, session);
+    }
   }
 
-  if (index !== undefined && queue && index === queue.length - 1 && nativeRepeatMode === 'queue') {
-    return TrackPlayer.skip(0);
+  if (isAutoAdvance && nativeRepeatMode === 'track') {
+    const session = getPlaybackSession();
+    if (session) {
+      return playQueue(session.queue, session.currentIndex, session);
+    }
   }
   return TrackPlayer.skipToNext();
 }
 
 export async function skipToPrevious() {
+  console.log(`[DIAGNOSTIC] skipToPrevious called. Stack:`, new Error().stack);
+  const session = getPlaybackSession();
+  if (session && (session.source === "album" || session.source === "playlist")) {
+    let prevIndex = session.currentIndex - 1;
+    if (prevIndex < 0) {
+      if (nativeRepeatMode === 'queue') prevIndex = session.queue.length - 1;
+      else prevIndex = 0;
+    }
+    const playId = ++latestPlayId;
+    return _playLogicalCollectionTrack(prevIndex, playId);
+  }
+  if (session && session.source === "track") {
+    if (!isWeb) {
+            const index = await TrackPlayer.getActiveTrackIndex();
+            if (index !== undefined && index !== null) {
+                const track = await TrackPlayer.getTrack(index);
+                if (track) {
+                   isResettingQueue = true;
+                   await TrackPlayer.reset();
+                   await TrackPlayer.add([track]);
+                   isResettingQueue = false;
+                   await TrackPlayer.play();
+                }
+            }
+          } else {
+            getAudio().currentTime = 0;
+            await webPlay();
+          }
+    return;
+  }
   if (isWeb) {
     if (webQueue.length === 0) return;
     if (webQueue.length === 1) {
@@ -487,13 +711,18 @@ export async function skipToPrevious() {
     }
   }
 
-  if (queue && queue.length === 1) {
-    return TrackPlayer.seekTo(0);
+  if (index === 0) {
+    const session = getPlaybackSession();
+    if (session && session.queue && session.queue.length > 0) {
+      let prevIndex = session.currentIndex - 1;
+      if (prevIndex < 0) {
+        if (nativeRepeatMode === 'queue') prevIndex = session.queue.length - 1;
+        else prevIndex = 0;
+      }
+      return playQueue(session.queue, prevIndex, session);
+    }
   }
 
-  if (index === 0 && nativeRepeatMode === 'queue' && queue?.length) {
-    return TrackPlayer.skip(queue.length - 1);
-  }
   return TrackPlayer.skipToPrevious();
 }
 
@@ -513,7 +742,12 @@ let playPausePromise: Promise<void> | null = null;
 async function togglePlayPauseInternal() {
   if (isWeb) {
     if (webState === "Playing") { webPause(); }
-    else { webPlay(); }
+    else {
+      if (webState === "Ended" || webState === "Stopped") {
+         getAudio().currentTime = 0;
+      }
+      webPlay();
+    }
     return;
   }
   await ensureSetup();
@@ -532,8 +766,14 @@ async function togglePlayPauseInternal() {
   }
 
   const { state } = await TrackPlayer.getPlaybackState();
-  if (state === State.Playing) await TrackPlayer.pause();
-  else await TrackPlayer.play();
+  if (state === State.Playing) {
+    await TrackPlayer.pause();
+  } else {
+    if (state === State.Ended || state === State.Stopped) {
+      await TrackPlayer.seekTo(0);
+    }
+    await TrackPlayer.play();
+  }
 }
 
 export async function seekTo(position: number) {
@@ -577,9 +817,16 @@ export function addTrackChangeListener(callback: (track: Track & { streamUrl: st
     nativeSub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event) => {
       const payload = event as { index?: number; track?: Record<string, unknown> };
       const track = payload.track;
-      if (payload.index !== undefined) updatePlaybackSessionIndex(payload.index);
       if (track) {
         const unmapped = unmapTrack(track);
+        
+        // Use the preserved session index if available, otherwise fallback
+        const sessionIndex = unmapped._sessionIndex !== undefined ? unmapped._sessionIndex : payload.index;
+        if (sessionIndex !== undefined) {
+          updatePlaybackSessionIndex(sessionIndex);
+          
+        }
+
         callback(unmapped);
         
         if (unmapped.durationMs && unmapped.durationMs > 0) {
@@ -587,6 +834,8 @@ export function addTrackChangeListener(callback: (track: Track & { streamUrl: st
              updateTrackDuration(unmapped.videoId, unmapped.durationMs!).catch(console.error);
            });
         }
+      } else if (payload.index !== undefined) {
+        updatePlaybackSessionIndex(payload.index);
       }
     });
   });
@@ -636,9 +885,15 @@ export async function setRepeatMode(mode: 'off' | 'track' | 'queue') {
   }
   await ensureSetup();
   nativeRepeatMode = mode;
-  // NOTE: We intentionally disable native RepeatMode and manage it manually in `scheduleQueueAdvance`.
-  // Native queue looping bypasses our custom `addToHistory` tracking and session state updates.
-  await TrackPlayer.setRepeatMode(RepeatMode.Off);
+    // Enable seamless native loop for RepeatMode.Track (Track looping).
+    // For RepeatMode.Queue, we leave it Off and handle it logically via PlaybackQueueEnded
+    // because logical queues can be 50+ items and native queue is bounded.
+    const isStandalone = getPlaybackSession()?.source === "track";
+    if (isStandalone && mode === 'queue') {
+       await TrackPlayer.setRepeatMode(RepeatMode.Track);
+    } else {
+       await TrackPlayer.setRepeatMode(mode === 'track' ? RepeatMode.Track : RepeatMode.Off);
+    }
 }
 
 export async function getRepeatMode(): Promise<'off' | 'track' | 'queue'> {
@@ -647,3 +902,166 @@ export async function getRepeatMode(): Promise<'off' | 'track' | 'queue'> {
   }
   return nativeRepeatMode;
 }
+
+let jitInFlight = { generation: -1, index: -1 };
+
+export async function jitEnsureNextTrackInQueue(trigger: string = "unknown") {
+  if (isWeb) return;
+
+  const session = getPlaybackSession();
+  if (!session || !session.queue || session.queue.length === 0) return;
+  if (session.source === "track") return; // Standalone MUST remain JIT-free
+
+  let nextIndex = session.currentIndex + 1;
+  if (nextIndex >= session.queue.length) {
+    if (nativeRepeatMode === "queue") nextIndex = 0;
+    else return;
+  }
+
+  const playId = latestPlayId;
+
+  if (jitInFlight.generation === playId && jitInFlight.index === nextIndex) {
+    logger.debug(`[JIT] DUPLICATE generation=${playId} logicalIndex=${nextIndex} trigger=${trigger}`);
+    return;
+  }
+
+  try {
+    jitInFlight = { generation: playId, index: nextIndex };
+    logger.debug(`[JIT] START generation=${playId} logicalIndex=${nextIndex} trigger=${trigger}`);
+    
+    // Check if we already have the next track in TrackPlayer
+    const nativeQueue = await TrackPlayer.getQueue();
+    const activeIndex = await TrackPlayer.getActiveTrackIndex();
+    
+    if (nativeQueue && activeIndex !== undefined && activeIndex !== null) {
+      if (nativeQueue.length > activeIndex + 1) {
+        const nextNativeTrack = nativeQueue[activeIndex + 1];
+        if (nextNativeTrack._sessionIndex === nextIndex) {
+           logger.debug(`[JIT] SKIPPED generation=${playId} logicalIndex=${nextIndex} trigger=${trigger} (Already in native queue)`);
+           return; 
+        }
+      }
+    }
+
+    const nextTrack = session.queue[nextIndex];
+    if (!nextTrack) return;
+    
+    const { resolveStreamSafely } = await import("./playback");
+    const resolved = await resolveStreamSafely(nextTrack.videoId, nextTrack.streamUrl, {
+      title: nextTrack.title,
+      artist: nextTrack.artists?.[0] || 'Unknown Artist'
+    });
+    
+    if (latestPlayId !== playId) {
+       logger.debug(`[JIT] STALE generation=${playId} currentGeneration=${latestPlayId} logicalIndex=${nextIndex}`);
+       return;
+    }
+
+    nextTrack.streamUrl = resolved.url;
+    if (resolved.mimeType) nextTrack.mimeType = resolved.mimeType;
+
+    const currentSession = getPlaybackSession();
+    const isConsecutiveIndex = currentSession && (currentSession.currentIndex + 1 === nextIndex || (nativeRepeatMode === "queue" && currentSession.currentIndex === currentSession.queue.length - 1 && nextIndex === 0));
+
+    if (latestPlayId === playId && isConsecutiveIndex) {
+      logger.debug(`[JIT] RESOLVED generation=${playId} logicalIndex=${nextIndex} videoId=${nextTrack.videoId}`);
+      // Stage 1: Do not insert into native queue yet. Just cache the streamUrl.
+      logger.debug(`[JIT] PRECACHED generation=${playId} logicalIndex=${nextIndex} videoId=${nextTrack.videoId} (Stage 1)`);
+    } else {
+      logger.debug(`[JIT] STALE generation=${playId} logicalIndex=${nextIndex}`);
+    }
+
+  } catch (error) {
+    logger.debug(`[JIT] FAILED generation=${playId} logicalIndex=${nextIndex} error=${error}`);
+  } finally {
+    if (jitInFlight.generation === playId && jitInFlight.index === nextIndex) {
+      jitInFlight = { generation: -1, index: -1 };
+    }
+  }
+}
+
+export async function togglePlayback() {
+  const { state } = await TrackPlayer.getPlaybackState();
+  if (state === State.Playing) {
+    await TrackPlayer.pause();
+  } else {
+    if (state === State.Ended || state === State.Stopped) {
+      await TrackPlayer.seekTo(0);
+    }
+    await TrackPlayer.play();
+  }
+}
+
+
+export async function playLogicalCollection(collection: import("./music").Collection & { startIndex: number }, router: import("expo-router").Router) {
+  const { getNavRequestId, openPlayerSafe } = await import("./playback");
+  const currentReq = getNavRequestId();
+  const playId = ++latestPlayId;
+  logger.debug(`[COLLECTION_PLAY_REQUEST] playId: ${playId} albumId: ${collection.id} startIndex: ${collection.startIndex}`);
+
+  const tracks = collection.tracks.map(t => ({
+    ...t,
+    album: collection.title,
+    thumbnailUrl: t.thumbnailUrl || collection.artwork || null,
+  })) as PlaybackTrack[];
+  
+  setPlaybackSession({
+      source: collection.type === "playlist" ? "playlist" : "album",
+      collectionId: collection.id,
+      collectionTitle: collection.title
+    }, tracks, collection.startIndex);
+
+  await _playLogicalCollectionTrack(collection.startIndex, playId);
+  openPlayerSafe(router, tracks[collection.startIndex].videoId, currentReq);
+}
+
+async function _playLogicalCollectionTrack(index: number, playId: number, recoveryAttempts: number = 0) {
+  const session = getPlaybackSession();
+  if (!session || !session.queue) return;
+  const track = session.queue[index];
+  if (!track) return;
+  
+  const safeTrack = { ...track, title: track.title || "Unknown Title", artists: track.artists || [] } as unknown as import("./music").Track;
+  addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
+
+  try {
+    const { resolveStreamSafely } = await import("./playback");
+    const resolved = await resolveStreamSafely(track.videoId, track.streamUrl, {
+      title: track.title,
+      artist: track.artists?.[0] || 'Unknown Artist'
+    });
+    
+    if (latestPlayId !== playId) {
+      logger.debug(`[COLLECTION_STALE] generation=${playId} currentGeneration=${latestPlayId}`);
+      return;
+    }
+    
+    updatePlaybackSessionIndex(index);
+    track.streamUrl = resolved.url;
+    track.mimeType = resolved.mimeType;
+
+    if (isWeb) return;
+    
+    await ensureSetup();
+    if (latestPlayId !== playId) return;
+
+    try {
+      isResettingQueue = true;
+      await TrackPlayer.reset();
+    } finally {
+      isResettingQueue = false;
+    }
+    if (latestPlayId !== playId) return;
+
+    // We don't automatically set RepeatMode.Off here if it's already set to track/queue
+    const mapped = mapTrack({ ...track, _sessionIndex: index } as PlaybackTrack);
+    (mapped as any)._recoveryAttempts = recoveryAttempts;
+      await TrackPlayer.add([mapped]);
+
+    if (latestPlayId !== playId) return;
+    await TrackPlayer.play();
+  } catch (e) {
+    logger.debug(`[COLLECTION_ERROR] _playLogicalCollectionTrack generation=${playId} error=${e}`);
+  }
+}
+

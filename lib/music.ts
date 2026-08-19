@@ -32,11 +32,10 @@ export interface Album {
   duration?: string | null;
   tracks: Track[];
 }
-
 export interface Collection {
   id: string;
   title: string;
   artwork?: string | null;
   tracks: Track[];
-  type: "album" | "playlist" | "downloads" | "liked" | "search";
+  type: "album" | "playlist" | "liked" | "search";
 }

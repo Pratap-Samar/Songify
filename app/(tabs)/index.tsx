@@ -13,6 +13,7 @@ import { WebLineLoading } from "@/components/WebLineLoading";
 import { useTabBarHeight } from "@/lib/TabBarHeightContext";
 import { PressableScale } from "@/components/PressableScale";
 import { useActiveTrack } from "@/hooks/usePlaybackState";
+import { playAndOpenPlayer } from "@/lib/playback";
 
 export default function HomeTab() {
   const router = useRouter();
@@ -57,6 +58,8 @@ export default function HomeTab() {
             </PressableScale>
           </View>
 
+
+
           <Text style={[style.header, { fontSize: titleSize, marginTop: spacing * 1.5 }]}>Continue Listening</Text>
           
           {loading ? (
@@ -82,9 +85,7 @@ export default function HomeTab() {
                   key={track.videoId}
                   style={style.historyCard}
                   onPress={() => {
-                    import("@/lib/playback").then(({ playAndOpenPlayer }) => {
-                      playAndOpenPlayer(track.videoId, router);
-                    });
+                    playAndOpenPlayer(track.videoId, router, track);
                   }}
                 >
                   <View style={style.cardThumbnail}>

@@ -1,22 +1,23 @@
 import type { Track } from "./music";
 import { clearPlaybackSession as clearPersistedPlaybackSession, savePlaybackSession } from "./database";
-import { prefetchAudioUrl } from "./api";
 
-export type PlaybackSource = "track" | "album" | "playlist" | "downloads" | "liked";
 
-export type PlaybackTrack = Track & { streamUrl: string };
+export type PlaybackSource = "track" | "album" | "playlist" | "liked";
+
+export type PlaybackTrack = Track & { streamUrl: string, mimeType?: string };
 
 export type PlaybackSession = {
   source: PlaybackSource;
   collectionId: string | null;
   collectionTitle: string | null;
   queue: PlaybackTrack[];
+  originalQueue?: PlaybackTrack[];
   currentIndex: number;
 };
 
 export type PlaybackSessionInput = Pick<
   PlaybackSession,
-  "source" | "collectionId" | "collectionTitle"
+  "source" | "collectionId" | "collectionTitle" | "originalQueue"
 >;
 
 let session: PlaybackSession | null = null;
@@ -45,6 +46,7 @@ export function setPlaybackSession(
   queue: PlaybackTrack[],
   currentIndex: number,
 ) {
+  console.log(`[DIAGNOSTIC] setPlaybackSession called. Stack:`, new Error().stack);
   session = { ...input, queue, currentIndex };
   listeners.forEach((listener) => listener(session));
   prefetchNext(session);
@@ -53,6 +55,19 @@ export function setPlaybackSession(
   enqueuePersistence(
     () => savePlaybackSession(currentSession),
     "Failed to persist session"
+  );
+}
+
+export function updatePlaybackSessionQueue(queue: PlaybackTrack[], currentIndex: number, originalQueue?: PlaybackTrack[]) {
+  if (!session) return;
+  session = { ...session, queue, currentIndex, originalQueue };
+  listeners.forEach((listener) => listener(session));
+  prefetchNext(session);
+  
+  const currentSession = session;
+  enqueuePersistence(
+    () => savePlaybackSession(currentSession),
+    'savePlaybackSession'
   );
 }
 
@@ -71,7 +86,9 @@ export function updatePlaybackSessionIndex(currentIndex: number) {
 
 function prefetchNext(value: PlaybackSession) {
   const nextTrack = value.queue[value.currentIndex + 1];
-  if (nextTrack) prefetchAudioUrl(nextTrack.videoId);
+    if (nextTrack) {
+
+    }
 }
 
 export function clearPlaybackSession() {

@@ -108,18 +108,16 @@ export function usePlaybackSession() {
   // Load persisted session on mount
   useEffect(() => {
     async function loadSavedSession() {
-      const { getSavedPlaybackSession, initDb } = await import('@/lib/database');
-      await initDb();
+      const { getSavedPlaybackSession } = await import('@/lib/database');
       const saved = await getSavedPlaybackSession();
       if (saved) {
-        const { getAudioProxyUrl } = await import('@/lib/api');
         const { setPlaybackSession } = await import('@/lib/playback-session');
-        const sanitizedQueue = saved.queue.map(track => ({
-          ...track,
-          streamUrl: track.streamUrl.includes('/proxy/audio/') 
-            ? track.streamUrl 
-            : getAudioProxyUrl(track.videoId)
-        }));
+        const sanitizedQueue = saved.queue.map(track => {
+          return {
+            ...track,
+            streamUrl: `songify-unresolved://${track.videoId}.mp4`
+          };
+        });
 
         setPlaybackSession(
           {

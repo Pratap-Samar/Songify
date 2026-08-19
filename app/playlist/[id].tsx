@@ -21,13 +21,7 @@ import AddTracksModal from "@/components/AddTracksModal";
 import { subscribeToPlaylistChanges } from "@/lib/playlistEvents";
 import { deletePlaylist } from "@/lib/database";
 
-function formatDuration(ms: number | null | undefined): string {
-  if (!ms) return "0:00";
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
+
 
 export default function PlaylistDetailScreen() {
   const router = useRouter();
@@ -40,6 +34,13 @@ export default function PlaylistDetailScreen() {
   
   const [showSearch, setShowSearch] = useState(false);
   const [isEditingArt, setIsEditingArt] = useState(false);
+
+  // In the future, this can be `playlist?.artwork || undefined` when custom artwork is supported.
+  const customArtwork = undefined;
+  const customArtworkSource = useMemo(() => {
+    return customArtwork ? { uri: customArtwork } : undefined;
+  }, [customArtwork]);
+
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState("");
 
@@ -50,7 +51,7 @@ export default function PlaylistDetailScreen() {
   const { togglePlayPause } = usePlaybackControls();
   const { tabBarHeight } = useTabBarHeight();
 
-  const isThisCollectionActive = session?.collectionId === String(playlist?.id);
+  const isThisCollectionActive = session?.source === "playlist" && session?.collectionId === String(playlist?.id);
   const showPause = isThisCollectionActive && isPlaying;
 
   const handleMainPlay = () => {
@@ -121,7 +122,7 @@ export default function PlaylistDetailScreen() {
     ]);
   };
 
-  const handlePlayPlaylist = () => {
+    const handlePlayPlaylist = () => {
     if (!playlist || playlistTracks.length === 0) return;
     playCollection({
       type: "playlist",
@@ -146,18 +147,6 @@ export default function PlaylistDetailScreen() {
     }, router);
   };
 
-  const totalDurationMs = useMemo(() => {
-    return playlistTracks.reduce((acc, t) => acc + (t.durationMs || 0), 0);
-  }, [playlistTracks]);
-
-  const totalDurationStr = useMemo(() => {
-    if (totalDurationMs === 0) return "";
-    const totalSeconds = Math.floor(totalDurationMs / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    if (hours > 0) return `${hours} hr ${minutes} min`;
-    return `${minutes} min`;
-  }, [totalDurationMs]);
 
   if (!playlist) {
     return (
@@ -220,7 +209,6 @@ export default function PlaylistDetailScreen() {
       
       <Text style={[style.metadata, { fontSize: baseSize * 0.85 }]}>
         {playlistTracks.length} Songs
-        {totalDurationStr ? ` • ${totalDurationStr}` : ""}
       </Text>
 
       <View style={style.controlsRow}>
@@ -284,10 +272,6 @@ export default function PlaylistDetailScreen() {
               </Text>
             </View>
           </View>
-        
-          <Text style={style.trackDuration}>
-            {formatDuration(item.durationMs)}
-          </Text>
         </View>
         <PressableScale style={style.downloadBtn} onPress={() => handleRemoveTrack(item.videoId)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons 
@@ -301,7 +285,7 @@ export default function PlaylistDetailScreen() {
   };
 
   const renderTrack = ({ item, index }: { item: PlaylistTrackEntry; index: number }) => {
-    const isCurrentlyPlaying = activeTrack?.videoId === item.videoId;
+    const isCurrentlyPlaying = isThisCollectionActive && activeTrack?.videoId === item.videoId;
     return (
       <TrackRowItem 
         item={item} 
@@ -314,15 +298,15 @@ export default function PlaylistDetailScreen() {
   };
 
   // In the future, this can be `playlist?.artwork || undefined` when custom artwork is supported.
-  const customArtwork = undefined;
   const ambientColor = playlist?.coverColor;
+
 
   return (
     <View style={style.container}>
       {customArtwork ? (
         <View style={StyleSheet.absoluteFillObject}>
           <Image
-            source={{ uri: customArtwork }}
+            source={customArtworkSource}
             style={StyleSheet.absoluteFillObject}
             blurRadius={80}
             contentFit="cover"
@@ -342,7 +326,7 @@ export default function PlaylistDetailScreen() {
       <FlatList
         data={playlistTracks}
         keyExtractor={(item) => `${playlistId}-${item.videoId}`}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderHeader()}
         ListEmptyComponent={
           <Text style={style.empty}>No tracks in this playlist yet.</Text>
         }
@@ -533,11 +517,7 @@ const style = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.text.metadata,
   },
-  trackDuration: {
-    color: theme.colors.text.metadata,
-    fontSize: 13,
-    marginHorizontal: 12,
-  },
+
   downloadBtn: {
     padding: 4,
   },

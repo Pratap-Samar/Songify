@@ -2,11 +2,12 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import type { Track } from "./music";
 import type { PlaybackSession } from "./playback-session";
 import type { AlbumSearchItem } from "./music";
-import { logger } from "./logger";
-import { getPlaybackTrack } from "./api";
 import { notifyHistoryChanged } from "./historyEvents";
 import { notifyPlaylistsChanged } from "./playlistEvents";
 import { notifyAlbumsChanged } from "./albumEvents";
+
+import { logger } from "./logger";
+import { getPlaybackTrack } from "./api";
 
 export interface SavedAlbum {
   id: string;
@@ -209,6 +210,29 @@ export async function initDb() {
         year TEXT,
         savedAt TEXT NOT NULL DEFAULT (datetime('now'))
       );
+      CREATE TABLE IF NOT EXISTS downloads (
+        videoId TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        artists TEXT NOT NULL,
+        album TEXT,
+        durationMs INTEGER,
+        thumbnailUrl TEXT,
+        localUri TEXT,
+        status TEXT,
+        progress INTEGER DEFAULT 0,
+        addedAt TEXT DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS local_tracks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        artists TEXT NOT NULL,
+        album TEXT,
+        durationMs INTEGER,
+        thumbnailUrl TEXT,
+        localUri TEXT NOT NULL,
+        fileSize INTEGER,
+        addedAt TEXT DEFAULT (datetime('now'))
+      );
     `);
 
     // Ensure system playlists are unique by name to prevent race conditions during auto-creation
@@ -310,6 +334,26 @@ export async function initDb() {
       console.log(`[DB] Migration 4 DONE — user_version now = ${verifyRow?.user_version}`);
     } else {
       console.log(`[DB] Migration 4 SKIPPED (user_version = ${currentVersion})`);
+    }
+
+    if (currentVersion < 5) {
+      console.log("[DB] Migration to v5 START");
+      // The downloads table is created via CREATE TABLE IF NOT EXISTS above.
+      await database.execAsync("PRAGMA user_version = 5;");
+      const verifyRow = await database.getFirstAsync<{ user_version: number }>("PRAGMA user_version;");
+      console.log(`[DB] Migration 5 DONE — user_version now = ${verifyRow?.user_version}`);
+    } else {
+      console.log(`[DB] Migration 5 SKIPPED (user_version = ${currentVersion})`);
+    }
+
+    if (currentVersion < 6) {
+      console.log("[DB] Migration to v6 START");
+      // local_tracks table is created via CREATE TABLE IF NOT EXISTS above.
+      await database.execAsync("PRAGMA user_version = 6;");
+      const verifyRow = await database.getFirstAsync<{ user_version: number }>("PRAGMA user_version;");
+      console.log(`[DB] Migration 6 DONE — user_version now = ${verifyRow?.user_version}`);
+    } else {
+      console.log(`[DB] Migration 6 SKIPPED (user_version = ${currentVersion})`);
     }
 
     // Run one-time cleanup for any duplicate "Liked Songs" playlists caused by prior race conditions
@@ -610,12 +654,10 @@ export async function addToHistory(track: Track): Promise<void> {
 export async function getHistory(limit = 20): Promise<Track[]> {
   const database = await getDbAsync();
   if (!database) return [];
-  logger.debug(`[Database] getHistory: Fetching top ${limit} recent_plays...`);
   const rows = await database.getAllAsync<any>(
     "SELECT videoId, title, artists, album, durationMs, thumbnailUrl FROM recent_plays ORDER BY lastPlayedAt DESC LIMIT ?;",
     [limit]
   );
-  logger.debug(`[Database] getHistory: Found ${rows.length} rows.`);
   return rows.map((r) => ({
     videoId: r.videoId,
     title: r.title,
@@ -629,6 +671,15 @@ export async function getHistory(limit = 20): Promise<Track[]> {
 export async function savePlaybackSession(session: PlaybackSession): Promise<void> {
   const database = await getDbAsync();
   if (!database) return;
+  
+  // Strip signed URLs from the persisted queue to avoid expiration issues
+  const cleanQueue = session.queue.map(track => {
+    if (track.streamUrl && track.streamUrl.includes('googlevideo.com')) {
+      return { ...track, streamUrl: `songify-unresolved://${track.videoId}.mp4` };
+    }
+    return track;
+  });
+
   await database.runAsync(
     `INSERT INTO playback_session (id, source, collectionId, collectionTitle, queue, queueIndex, updatedAt)
      VALUES (1, ?, ?, ?, ?, ?, datetime('now'))
@@ -643,7 +694,7 @@ export async function savePlaybackSession(session: PlaybackSession): Promise<voi
       session.source,
       session.collectionId ?? "",
       session.collectionTitle ?? "",
-      JSON.stringify(session.queue),
+      JSON.stringify(cleanQueue),
       session.currentIndex,
     ]
   );
@@ -748,3 +799,4 @@ export async function removeAlbum(id: string): Promise<void> {
   logger.debug(`[Database] removeAlbum: removed album ${id}`);
   notifyAlbumsChanged();
 }
+

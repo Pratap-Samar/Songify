@@ -31,13 +31,6 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
   const { isPlaying, togglePlayPause, skipToNext, skipToPrevious, repeatMode, toggleRepeatMode } = usePlaybackControls();
   const { openLikeModal, isLiked } = useLikeModal();
   const liked = track ? isLiked(track.videoId) : false;
-  // ── Download state (mock) ───────────────────────────────────────
-  const [downloadState, setDownloadState] = useState<'none' | 'downloading' | 'downloaded'>('none');
-
-  // Reset download state when track changes
-  useEffect(() => {
-    setDownloadState('none');
-  }, [track?.videoId]);
 
   // ── Seek visual state ───────────────────────────────────────────
   const [seeking, setSeeking] = useState(false);
@@ -118,8 +111,8 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
         </PressableScale>
         <View style={style.headerCenter}>
           <Text style={style.headerTitle}>Now Playing</Text>
-          {session?.source === "album" && session.collectionId && session.collectionTitle && (
-            <PressableScale onPress={() => router.push(`/album/${session.collectionId}`)}>
+          {(session?.source === "album" || session?.source === "playlist") && session.collectionId && session.collectionTitle && (
+            <PressableScale onPress={() => router.push(`/${session.source}/${session.collectionId}`)}>
               <Text numberOfLines={1} style={[style.headerCollectionTitle, { color: theme.colors.accent.link }]}>
                 {session.collectionTitle}
               </Text>
@@ -165,28 +158,6 @@ export default function PlayerScreen({ videoId }: { videoId: string }) {
                   <Text numberOfLines={1} style={[style.artist, isCompact && { fontSize: 16 }]}>
                     {(track?.artists ?? []).join(", ") || ""}
                   </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <PressableScale
-                    style={style.downloadBtn}
-                    onPress={() => {
-                      if (downloadState === 'none') {
-                        setDownloadState('downloading');
-                        // Simulate download for now
-                        setTimeout(() => setDownloadState('downloaded'), 1500);
-                      }
-                    }}
-                  >
-                    {downloadState === 'downloading' ? (
-                      <ActivityIndicator size="small" color={theme.colors.text.primary} />
-                    ) : (
-                      <Ionicons 
-                        name={downloadState === 'downloaded' ? 'checkmark-circle' : 'download'} 
-                        size={26} 
-                        color={downloadState === 'downloaded' ? theme.colors.accent.status : theme.colors.text.primary} 
-                      />
-                    )}
-                  </PressableScale>
                 </View>
               </View>
 

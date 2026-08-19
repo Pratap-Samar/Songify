@@ -8,6 +8,7 @@ import Library from "@/components/Library";
 import SearchBar from "@/components/SearchBar";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
+import { playAndOpenPlayer } from "@/lib/playback";
 
 export default function SearchTab() {
   const router = useRouter();
@@ -106,9 +107,7 @@ export default function SearchTab() {
 
   const handlePressSong = (track: Track) => {
     setCurrentTrackId(track.videoId);
-    import("@/lib/playback").then(({ playAndOpenPlayer }) => {
-      playAndOpenPlayer(track.videoId, router);
-    });
+    playAndOpenPlayer(track.videoId, router, track);
   };
 
   const handleClearSearch = () => {

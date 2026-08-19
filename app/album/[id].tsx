@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { StyleSheet, View, Text, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -36,8 +36,12 @@ export default function AlbumScreen() {
   const { openLikeModal, isLiked } = useLikeModal();
   const { tabBarHeight } = useTabBarHeight();
   
-  const isThisCollectionActive = session?.collectionId === album?.id;
+  const isThisCollectionActive = session?.source === "album" && session?.collectionId === album?.id;
   const showPause = isThisCollectionActive && isPlaying;
+  const albumArtworkSource = useMemo(() => {
+    return album?.artwork ? { uri: album.artwork } : undefined;
+  }, [album?.artwork]);
+
 
   const handleMainPlay = () => {
     if (isThisCollectionActive) {
@@ -177,7 +181,7 @@ export default function AlbumScreen() {
       
       <View style={style.artworkWrapper}>
         {album.artwork ? (
-          <Image source={{ uri: album.artwork || undefined }} style={style.artwork} cachePolicy="disk" contentFit="cover" transition={150} />
+          <Image source={albumArtworkSource} style={style.artwork} cachePolicy="disk" contentFit="cover" transition={150} />
         ) : (
           <View style={style.artworkPlaceholder}>
             <Ionicons name="musical-notes" size={64} color={theme.colors.text.secondary} />
@@ -280,7 +284,7 @@ export default function AlbumScreen() {
   };
 
   const renderTrack = ({ item, index }: { item: Track; index: number }) => {
-    const isCurrentlyPlaying = activeTrack?.videoId === item.videoId;
+    const isCurrentlyPlaying = isThisCollectionActive && activeTrack?.videoId === item.videoId;
     return (
       <TrackRowItem 
         item={item} 
@@ -297,7 +301,7 @@ export default function AlbumScreen() {
       {album.artwork && (
         <View style={StyleSheet.absoluteFillObject}>
           <Image
-            source={{ uri: album.artwork }}
+            source={albumArtworkSource}
             style={StyleSheet.absoluteFillObject}
             blurRadius={80}
             contentFit="cover"
@@ -308,7 +312,7 @@ export default function AlbumScreen() {
       <FlatList
         data={album.tracks}
         keyExtractor={(item, index) => `${item.videoId}-${index}`}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderHeader()}
         renderItem={renderTrack}
         style={style.trackList}
         contentContainerStyle={[style.listContent, { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%", paddingBottom: tabBarHeight + 20 }]}

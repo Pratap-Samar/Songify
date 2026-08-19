@@ -80,8 +80,9 @@ export default function NowPlayingBar({
 
   const handleCollectionPress = (e: GestureResponderEvent) => {
     e.stopPropagation?.();
-    if (session?.source === "album" && session.collectionId) {
-      router.push(`/album/${session.collectionId}`);
+    if (session?.collectionId) {
+      if (session.source === "album") router.push(`/album/${session.collectionId}`);
+      else if (session.source === "playlist") router.push(`/playlist/${session.collectionId}`);
     }
   };
 
@@ -97,7 +98,7 @@ export default function NowPlayingBar({
             <Text numberOfLines={1} style={style.artist}>
               {(track.artists ?? []).join(", ") || ""}
             </Text>
-            {session?.source === "album" && session.collectionTitle && (
+            {(session?.source === "album" || session?.source === "playlist") && session.collectionTitle && (
               <PressableScale onPress={handleCollectionPress}>
                 <Text numberOfLines={1} style={style.collectionTitle}>
                   {session.collectionTitle}

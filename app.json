@@ -17,7 +17,8 @@
       "expo-font",
       "expo-router",
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-dev-client"
     ]
   }
 }

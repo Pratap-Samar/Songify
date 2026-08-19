@@ -15,6 +15,7 @@ if (Platform.OS !== "web") {
 
 import { useEffect, useState } from "react";
 import { initDb } from "@/lib/database";
+import { ensureSetup } from "@/lib/track-player";
 
 async function requestNotificationPermission() {
   if (Platform.OS !== "android") return;
@@ -39,7 +40,17 @@ export default function RootLayout() {
   const pathname = usePathname();
 
   useEffect(() => {
-    initDb().then(() => setDbReady(true)).catch(console.error);
+    Promise.all([
+      initDb(),
+      ensureSetup()
+    ]).then(() => {
+      setDbReady(true);
+      // Preload the youtube-resolver asynchronously so it doesn't block UI tap
+      import("@/lib/youtube-resolver").then(({ preloadResolver }) => preloadResolver()).catch(console.error);
+
+      
+
+    }).catch(console.error);
     requestNotificationPermission();
   }, []);
 

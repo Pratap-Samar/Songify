@@ -5,13 +5,13 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { usePlaylists } from "@/lib/usePlaylists";
 import { useAlbums } from "@/lib/useAlbums";
+import { useTabBarHeight } from "@/lib/TabBarHeightContext";
+import { PressableScale } from "@/components/PressableScale";
 import { theme } from "@/constants/theme";
 import { useResponsive } from "@/lib/useResponsive";
 import PlaylistArt from "@/components/PlaylistArt";
-import { useTabBarHeight } from "@/lib/TabBarHeightContext";
-import { PressableScale } from "@/components/PressableScale";
 
-type FilterType = "playlists" | "albums" | "downloaded";
+type FilterType = "playlists" | "albums";
 
 export default function LibraryTab() {
   const router = useRouter();
@@ -34,11 +34,10 @@ export default function LibraryTab() {
           </PressableScale>
         </View>
       </View>
-
       {/* 2. Filter Chip Row */}
       <View style={[style.chipContainer, { paddingHorizontal: spacing, paddingBottom: spacing }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={style.chipScroll}>
-          {(["playlists", "albums", "downloaded"] as FilterType[]).map((filter) => {
+          {(["playlists", "albums"] as FilterType[]).map((filter) => {
             const isActive = activeFilter === filter;
             return (
               <PressableScale
@@ -165,11 +164,6 @@ export default function LibraryTab() {
               )}
             </>
           )}
-
-          {activeFilter === "downloaded" && (
-            <Text style={[style.empty, { fontSize: baseSize }]}>No downloaded content yet.</Text>
-          )}
-
         </View>
       </ScrollView>
     </View>
