@@ -1,5 +1,5 @@
 import { getPlaybackTrack } from "./api";
-import { playQueue, playStandaloneTrack, playLogicalCollection, getLatestPlayId, incrementPlayId } from "./track-player";
+import { playQueue, playStandaloneTrack, playLogicalCollection, getLatestPlayId, incrementPlayId, setResolvingTrackId } from "./track-player";
 import { Alert } from "react-native";
 import type { Router } from "expo-router";
 import { type Collection } from "./music";
@@ -81,7 +81,6 @@ export async function resolveStreamSafely(
  * Must NOT contain navigation logic.
  */
 export async function loadAndPlayTrack(videoId: string, track?: import("./music").Track): Promise<void> {
-  console.log(`[DIAGNOSTIC] loadAndPlayTrack called. Stack:`, new Error().stack);
   const playId = incrementPlayId();
 
   const t0 = performance.now();
@@ -100,7 +99,6 @@ export async function loadAndPlayTrack(videoId: string, track?: import("./music"
   if (resolved.mimeType) result.mimeType = resolved.mimeType;
   
   if (getLatestPlayId() !== playId) {
-    console.log(`[DIAGNOSTIC] loadAndPlayTrack aborted due to newer playId`);
     return;
   }
   await playStandaloneTrack(result, playId);
@@ -137,7 +135,6 @@ export async function playAndOpenPlayer(videoId: string, router: Router, track?:
  * Only natively resolves the first track to avoid blocking.
  */
 export async function playCollection(collection: Collection & { startIndex: number }, router: Router): Promise<void> {
-  console.log(`[DIAGNOSTIC] playCollection called. Stack:`, new Error().stack);
     if (collection.type === "album" || collection.type === "playlist") return playLogicalCollection(collection, router);
   const currentReq = getNavRequestId();
   const playId = incrementPlayId();
@@ -164,7 +161,6 @@ export async function playCollection(collection: Collection & { startIndex: numb
       };
     }));
     if (getLatestPlayId() !== playId) {
-      console.log(`[DIAGNOSTIC] playCollection aborted due to newer playId (was ${playId}, now ${getLatestPlayId()})`);
       return;
     }
     const source: PlaybackSource = collection.type === "search" ? "track" : collection.type;
@@ -186,3 +182,4 @@ export async function playCollection(collection: Collection & { startIndex: numb
     );
   }
 }
+

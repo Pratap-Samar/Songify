@@ -9,8 +9,8 @@ export type Track = {
 
 export type PlaybackTrack = Track & {
   streamUrl: string;
-  mimeType: string;
-  expiresInSeconds: number | null;
+  mimeType?: string;
+  expiresInSeconds?: number | null;
 };
 
 export interface AlbumSearchItem {

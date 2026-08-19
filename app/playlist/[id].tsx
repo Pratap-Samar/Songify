@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import React from "react";
 import { FlatList, StyleSheet, Text, TextInput, View, ActivityIndicator, Alert, Animated } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,8 +21,50 @@ import EditPlaylistArtModal from "@/components/EditPlaylistArtModal";
 import AddTracksModal from "@/components/AddTracksModal";
 import { subscribeToPlaylistChanges } from "@/lib/playlistEvents";
 import { deletePlaylist } from "@/lib/database";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-
+const TrackRowItem = React.memo(({ item, index, isCurrentlyPlaying, isPlaying, handlePlayTrack, handleRemoveTrack }: any) => {
+  const titleColor = isCurrentlyPlaying ? theme.colors.accent.status : theme.colors.text.primary;
+  return (
+    <PressableScale style={style.trackRow} onPress={() => handlePlayTrack(index)}>
+      <View style={style.trackNumberContainer}>
+        {isCurrentlyPlaying && isPlaying ? (
+          <Ionicons name="stats-chart" size={16} color={theme.colors.accent.status} />
+        ) : (
+          <Text style={[style.trackNumber, isCurrentlyPlaying && { color: theme.colors.accent.status }]}>
+            {index + 1}
+          </Text>
+        )}
+      </View>
+      <View style={style.trackContent}>
+        <View style={style.trackLeft}>
+          {item.thumbnailUrl && (
+            <View style={style.thumbnailContainer}>
+              <Image source={{ uri: item.thumbnailUrl }} style={style.thumbnail} />
+            </View>
+          )}
+          <View style={style.trackText}>
+            <MarqueeText
+              style={[style.trackTitle, { fontSize: 15, color: titleColor }]}
+              text={item.title}
+              animate={isCurrentlyPlaying}
+            />
+            <Text style={[style.trackArtist, { fontSize: 13 }]} numberOfLines={1}>
+              {item.artists}
+            </Text>
+          </View>
+        </View>
+      </View>
+      <PressableScale style={style.downloadBtn} onPress={() => handleRemoveTrack(item.videoId)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <Ionicons 
+          name="close-circle" 
+          size={24} 
+          color={theme.colors.text.secondary} 
+        />
+      </PressableScale>
+    </PressableScale>
+  );
+});
 
 export default function PlaylistDetailScreen() {
   const router = useRouter();
@@ -35,7 +78,6 @@ export default function PlaylistDetailScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [isEditingArt, setIsEditingArt] = useState(false);
 
-  // In the future, this can be `playlist?.artwork || undefined` when custom artwork is supported.
   const customArtwork = undefined;
   const customArtworkSource = useMemo(() => {
     return customArtwork ? { uri: customArtwork } : undefined;
@@ -46,26 +88,37 @@ export default function PlaylistDetailScreen() {
 
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const shuffleEnabled = useShuffleMode();
-  const { track: activeTrack, isPlaying } = useActiveTrack();
+  const { track: activeTrack, isPlaying, resolvingTrackId } = useActiveTrack();
   const session = usePlaybackSession();
   const { togglePlayPause } = usePlaybackControls();
   const { tabBarHeight } = useTabBarHeight();
 
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const isThisCollectionActive = session?.source === "playlist" && session?.collectionId === String(playlist?.id);
   const showPause = isThisCollectionActive && isPlaying;
 
-  const handleMainPlay = () => {
+  const handleMainPlay = useCallback(() => {
     if (isThisCollectionActive) {
       togglePlayPause();
     } else {
-      handlePlayPlaylist();
+      if (playlist && playlistTracks.length > 0) {
+        playCollection({
+          type: "playlist",
+          id: String(playlist.id),
+          title: playlist.name,
+          artwork: undefined,
+          tracks: playlistTracks,
+          startIndex: 0,
+        }, router);
+      }
     }
-  };
+  }, [isThisCollectionActive, playlist, playlistTracks, togglePlayPause, router]);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     if (router.canGoBack()) router.back();
     else router.replace("/");
-  };
+  }, [router]);
 
   const loadTracks = useCallback(async () => {
     const tracks = await getTracks(playlistId);
@@ -77,8 +130,6 @@ export default function PlaylistDetailScreen() {
     if (p) {
       setPlaylist(p);
       setTempTitle(p.name);
-    } else if (!globalLoading) {
-        // Playlist deleted or not found
     }
   }, [playlistId, playlists, globalLoading]);
 
@@ -87,16 +138,10 @@ export default function PlaylistDetailScreen() {
     return subscribeToPlaylistChanges(loadTracks);
   }, [loadTracks]);
 
-
-  const handleAddTrack = async (track: Track) => {
-    await addTrack(playlistId, track);
-    await loadTracks();
-  };
-
-  const handleRemoveTrack = async (videoId: string) => {
+  const handleRemoveTrack = useCallback(async (videoId: string) => {
     await removeTrack(playlistId, videoId);
     await loadTracks();
-  };
+  }, [playlistId, removeTrack, loadTracks]);
 
   const handleRename = async () => {
     const trimmed = tempTitle.trim();
@@ -122,20 +167,7 @@ export default function PlaylistDetailScreen() {
     ]);
   };
 
-    const handlePlayPlaylist = () => {
-    if (!playlist || playlistTracks.length === 0) return;
-    playCollection({
-      type: "playlist",
-      id: String(playlist.id),
-      title: playlist.name,
-      artwork: undefined,
-      tracks: playlistTracks,
-      startIndex: 0,
-    }, router);
-  };
-
-
-  const handlePlayTrack = (index: number) => {
+  const handlePlayTrack = useCallback((index: number) => {
     if (!playlist || playlistTracks.length === 0) return;
     playCollection({
       type: "playlist",
@@ -145,8 +177,25 @@ export default function PlaylistDetailScreen() {
       tracks: playlistTracks,
       startIndex: index,
     }, router);
-  };
+  }, [playlist, playlistTracks, router]);
 
+  const renderTrack = useCallback(({ item, index }: { item: PlaylistTrackEntry; index: number }) => {
+    const isCurrentlyPlaying = isThisCollectionActive && activeTrack?.videoId === item.videoId;
+    return (
+      <TrackRowItem 
+        item={item} 
+        index={index} 
+        isCurrentlyPlaying={isCurrentlyPlaying} 
+        isPlaying={isPlaying} 
+        handlePlayTrack={handlePlayTrack} 
+        handleRemoveTrack={handleRemoveTrack}
+      />
+    );
+  }, [isThisCollectionActive, activeTrack, isPlaying, handlePlayTrack, handleRemoveTrack]);
+
+  const renderSeparator = useCallback(() => (
+    <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)", marginLeft: 64 }} />
+  ), []);
 
   if (!playlist) {
     return (
@@ -158,22 +207,6 @@ export default function PlaylistDetailScreen() {
 
   const renderHeader = () => (
     <View style={style.headerContainer}>
-      <PressableScale style={style.headerBack} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-        <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
-      </PressableScale>
-      <PressableScale
-        style={style.deleteBtn}
-        onPress={handleDeletePlaylist}
-        disabled={!!playlist.isSystem}
-      >
-        <Ionicons 
-          name="trash" 
-          size={24} 
-          color={playlist.isSystem ? theme.colors.text.secondary : theme.colors.accent.status} 
-          style={{ opacity: playlist.isSystem ? 0.3 : 1 }}
-        />
-      </PressableScale>
-      
       <View style={style.artworkWrapper}>
         <PlaylistArt 
           playlist={playlist} 
@@ -220,10 +253,10 @@ export default function PlaylistDetailScreen() {
           </View>
         </PressableScale>
         <PressableScale 
-          style={[style.actionButton, shuffleEnabled && { backgroundColor: hexToRgba(theme.colors.accent.secondary, 0.2), borderColor: 'transparent' }]} 
+          style={[style.actionButton, shuffleEnabled && { backgroundColor: hexToRgba(theme.colors.accent.secondary, 0.2), borderColor: "transparent" }]} 
           onPress={async () => {
             import("expo-haptics").then(Haptics => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
-            const { toggleShuffleMode } = await import('@/lib/track-player');
+            const { toggleShuffleMode } = await import("@/lib/track-player");
             await toggleShuffleMode();
           }}
         >
@@ -241,68 +274,16 @@ export default function PlaylistDetailScreen() {
     </View>
   );
 
-  const TrackRowItem = ({ item, index, isCurrentlyPlaying, isPlaying, handlePlayTrack }: any) => {
-    const titleColor = isCurrentlyPlaying ? theme.colors.accent.status : theme.colors.text.primary;
-    return (
-      <PressableScale style={style.trackRow} onPress={() => handlePlayTrack(index)}>
-        <View style={style.trackNumberContainer}>
-          {isCurrentlyPlaying && isPlaying ? (
-            <Ionicons name="stats-chart" size={16} color={theme.colors.accent.status} />
-          ) : (
-            <Text style={[style.trackNumber, isCurrentlyPlaying && { color: theme.colors.accent.status }]}>
-              {index + 1}
-            </Text>
-          )}
-        </View>
-        <View style={style.trackContent}>
-          <View style={style.trackLeft}>
-            {item.thumbnailUrl && (
-              <View style={style.thumbnailContainer}>
-                <Image source={{ uri: item.thumbnailUrl }} style={style.thumbnail} />
-              </View>
-            )}
-            <View style={style.trackText}>
-              <MarqueeText
-                style={[style.trackTitle, { fontSize: baseSize, color: titleColor }]}
-                text={item.title}
-                animate={isCurrentlyPlaying}
-              />
-              <Text style={[style.trackArtist, { fontSize: baseSize * 0.85 }]} numberOfLines={1}>
-                {item.artists}
-              </Text>
-            </View>
-          </View>
-        </View>
-        <PressableScale style={style.downloadBtn} onPress={() => handleRemoveTrack(item.videoId)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons 
-            name="close-circle" 
-            size={24} 
-            color={theme.colors.text.secondary} 
-          />
-        </PressableScale>
-      </PressableScale>
-    );
-  };
-
-  const renderTrack = ({ item, index }: { item: PlaylistTrackEntry; index: number }) => {
-    const isCurrentlyPlaying = isThisCollectionActive && activeTrack?.videoId === item.videoId;
-    return (
-      <TrackRowItem 
-        item={item} 
-        index={index} 
-        isCurrentlyPlaying={isCurrentlyPlaying} 
-        isPlaying={isPlaying} 
-        handlePlayTrack={handlePlayTrack} 
-      />
-    );
-  };
-
-  // In the future, this can be `playlist?.artwork || undefined` when custom artwork is supported.
   const ambientColor = playlist?.coverColor;
-
+  
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [200, 280],
+    outputRange: [0, 1],
+    extrapolate: "clamp"
+  });
 
   return (
-    <View style={style.container}>
+    <SafeAreaView edges={["top"]} style={style.container}>
       {customArtwork ? (
         <View style={StyleSheet.absoluteFillObject}>
           <Image
@@ -323,16 +304,48 @@ export default function PlaylistDetailScreen() {
           />
         </View>
       ) : null}
-      <FlatList
+      
+      <Animated.View style={[style.stickyHeader, { opacity: headerOpacity }]} pointerEvents="box-none">
+        <Text style={style.stickyTitle} numberOfLines={1}>{playlist.name}</Text>
+        <PressableScale onPress={handleMainPlay} style={style.stickyPlayButton}>
+          <Ionicons name={showPause ? "pause" : "play"} size={20} color={theme.colors.text.onPrimary} style={{ marginLeft: showPause ? 0 : 2 }} />
+        </PressableScale>
+      </Animated.View>
+
+      <PressableScale style={style.absoluteBack} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
+      </PressableScale>
+
+      <PressableScale
+        style={style.absoluteDelete}
+        onPress={handleDeletePlaylist}
+        disabled={!!playlist.isSystem}
+      >
+        <Ionicons 
+          name="trash" 
+          size={24} 
+          color={playlist.isSystem ? theme.colors.text.secondary : theme.colors.accent.status} 
+          style={{ opacity: playlist.isSystem ? 0.3 : 1 }}
+        />
+      </PressableScale>
+
+      <Animated.FlatList
         data={playlistTracks}
         keyExtractor={(item) => `${playlistId}-${item.videoId}`}
-        ListHeaderComponent={renderHeader()}
+        ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           <Text style={style.empty}>No tracks in this playlist yet.</Text>
         }
         renderItem={renderTrack}
+        ItemSeparatorComponent={renderSeparator}
         contentContainerStyle={[style.listContent, { paddingBottom: tabBarHeight + 20 }]}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
       />
+      
       <EditPlaylistArtModal
         visible={isEditingArt}
         onClose={() => setIsEditingArt(false)}
@@ -344,7 +357,7 @@ export default function PlaylistDetailScreen() {
         existingTrackIds={new Set(playlistTracks.map(t => t.videoId))}
         onClose={() => setShowSearch(false)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -362,34 +375,70 @@ const style = StyleSheet.create({
   listContent: {
     paddingBottom: 40,
     paddingHorizontal: 4,
-  },
-  miniPlayerContainer: {
-    width: "100%",
-    alignSelf: "center",
+    paddingTop: 60,
   },
   headerContainer: {
     alignItems: "center",
-    paddingTop: 60,
+    paddingTop: 12,
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
-  headerBack: {
+  absoluteBack: {
     position: "absolute",
-    top: 50,
+    top: 48,
     left: 16,
-    zIndex: 10,
-    padding: 8,
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 20,
   },
-  deleteBtn: {
+  absoluteDelete: {
     position: "absolute",
-    top: 50,
+    top: 48,
     right: 16,
-    zIndex: 10,
-    padding: 8,
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 20,
+  },
+  stickyHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 96,
+    paddingTop: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.bg.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+    zIndex: 15,
+  },
+  stickyTitle: {
+    color: theme.colors.text.primary,
+    fontSize: 16,
+    fontWeight: "bold",
+    maxWidth: "60%",
+    textAlign: "center",
+  },
+  stickyPlayButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.accent.primary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   artworkWrapper: {
     shadowColor: "#000",
@@ -462,7 +511,7 @@ const style = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 12,
-    marginBottom: 4,
+    marginBottom: 0,
   },
   trackNumberContainer: {
     width: 32,
@@ -483,14 +532,14 @@ const style = StyleSheet.create({
   },
   trackContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   trackLeft: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   thumbnailContainer: {
     marginRight: 12,
@@ -503,7 +552,7 @@ const style = StyleSheet.create({
   },
   trackText: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   trackTitle: {
     color: theme.colors.text.primary,
@@ -517,7 +566,6 @@ const style = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.text.metadata,
   },
-
   downloadBtn: {
     padding: 4,
   },
@@ -527,31 +575,4 @@ const style = StyleSheet.create({
     marginTop: 40,
     fontSize: 15,
   },
-  searchBar: {
-    width: "100%",
-    marginTop: 24,
-    padding: 12,
-    backgroundColor: theme.colors.bg.surface,
-    borderRadius: 12,
-  },
-  searchInput: {
-    backgroundColor: "rgba(0, 0, 0, 0.15)",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
-    fontSize: 13,
-    color: theme.colors.text.primary,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  searchResults: {
-    marginTop: 8,
-  },
-  searchResultItem: {
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border.default,
-  },
-  searchResultTitle: { fontSize: 15, fontWeight: "600", color: theme.colors.text.primary },
-  searchResultArtist: { fontSize: 11, color: theme.colors.text.metadata },
 });

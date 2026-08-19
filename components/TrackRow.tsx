@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { theme } from "@/constants/theme";
 import { PressableScale } from "./PressableScale";
@@ -10,6 +10,7 @@ export type TrackRowProps = {
   subtitle: string;
   thumbnailUrl?: string | null;
   isSelected?: boolean;
+  isResolving?: boolean;
   onPress: () => void;
   onLongPress?: () => void;
   rightElement?: React.ReactNode;
@@ -20,6 +21,7 @@ export function TrackRow({
   subtitle,
   thumbnailUrl,
   isSelected,
+  isResolving,
   onPress,
   onLongPress,
   rightElement,
@@ -39,6 +41,11 @@ export function TrackRow({
             contentFit="cover"
             transition={150}
           />
+        )}
+        {isResolving && (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", borderRadius: 4 }]}>
+            <ActivityIndicator size="small" color={theme.colors.accent.primary} />
+          </View>
         )}
       </View>
       <View style={style.dataContainer}>

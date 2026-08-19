@@ -12,6 +12,8 @@ import {
   skipToPrevious as nativeSkipToPrevious,
   getShuffleMode,
   addShuffleListener,
+  getResolvingTrackId,
+  addResolvingTrackListener,
 } from "@/lib/track-player";
 import type { Track } from "@/lib/music";
 import { getPlaybackSession, subscribePlaybackSession } from "@/lib/playback-session";
@@ -20,12 +22,14 @@ export function useActiveTrack() {
   const [track, setTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resolvingTrackId, setResolvingTrackId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
     async function syncInitialState() {
       try {
+        if (active) setResolvingTrackId(getResolvingTrackId());
         const activeT = await getActiveTrack();
         if (activeT && active) {
           setTrack(activeT as unknown as Track);
@@ -53,14 +57,19 @@ export function useActiveTrack() {
       setIsPlaying(true);
     });
 
+    const resolvingUnsub = addResolvingTrackListener((id) => {
+      if (active) setResolvingTrackId(id);
+    });
+
     return () => {
       active = false;
       stateUnsub?.remove?.();
       trackUnsub?.remove?.();
+      resolvingUnsub?.remove?.();
     };
   }, []);
 
-  return { track, isPlaying, error };
+  return { track, isPlaying, error, resolvingTrackId };
 }
 
 export function usePlaybackProgress() {

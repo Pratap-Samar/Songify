@@ -9,10 +9,11 @@ type SearchBarProps = {
   handleClearSearch: () => void;
   autoFocus?: boolean;
   onBack?: () => void;
+  onSubmitEditing?: () => void;
 };
 
 export default function SearchBar(props: SearchBarProps) {
-  const { form, handleChange, handleClearSearch, autoFocus, onBack } = props;
+  const { form, handleChange, handleClearSearch, autoFocus, onBack, onSubmitEditing } = props;
   const [isFocused, setIsFocused] = useState(false);
 
   return (
@@ -31,6 +32,7 @@ export default function SearchBar(props: SearchBarProps) {
           onBlur={() => setIsFocused(false)}
           autoFocus={autoFocus}
           returnKeyType="search"
+          onSubmitEditing={onSubmitEditing}
           style={style.input}
           placeholder="Search for songs"
           placeholderTextColor={theme.colors.text.muted}

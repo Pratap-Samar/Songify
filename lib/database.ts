@@ -210,6 +210,10 @@ export async function initDb() {
         year TEXT,
         savedAt TEXT NOT NULL DEFAULT (datetime('now'))
       );
+      CREATE TABLE IF NOT EXISTS recent_searches (
+        query TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS downloads (
         videoId TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -798,5 +802,29 @@ export async function removeAlbum(id: string): Promise<void> {
   await database.runAsync(`DELETE FROM saved_albums WHERE id = ?;`, id);
   logger.debug(`[Database] removeAlbum: removed album ${id}`);
   notifyAlbumsChanged();
+}
+
+
+export async function saveRecentSearch(query: string) {
+  const db = await getDbAsync();
+  if (!db) return;
+  await db.runAsync(
+    'INSERT OR REPLACE INTO recent_searches (query, timestamp) VALUES (?, ?)',
+    [query.trim(), new Date().toISOString()]
+  );
+  await db.runAsync('DELETE FROM recent_searches WHERE query NOT IN (SELECT query FROM recent_searches ORDER BY timestamp DESC LIMIT 20)');
+}
+
+export async function getRecentSearches(): Promise<string[]> {
+  const db = await getDbAsync();
+  if (!db) return [];
+  const rows = await db.getAllAsync<any>('SELECT query FROM recent_searches ORDER BY timestamp DESC LIMIT 20');
+  return rows.map(r => r.query);
+}
+
+export async function removeRecentSearch(query: string) {
+  const db = await getDbAsync();
+  if (!db) return;
+  await db.runAsync('DELETE FROM recent_searches WHERE query = ?', [query]);
 }
 

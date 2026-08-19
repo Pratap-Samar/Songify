@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { StyleSheet, View, Text, FlatList, ActivityIndicator } from "react-native";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { StyleSheet, View, Text, FlatList, ActivityIndicator, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -19,6 +19,49 @@ import { useLikeModal } from "@/lib/LikeModalContext";
 import { darkenHex, hexToRgba } from "@/lib/colorUtils";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 
+const TrackRowItem = React.memo(({ item, index, isCurrentlyPlaying, isPlaying, isResolving, handlePlayTrack, liked, openLikeModal }: any) => {
+  const isPlayingThis = isCurrentlyPlaying && isPlaying;
+
+  return (
+    <PressableScale style={style.trackRow} onPress={() => handlePlayTrack(index)}>
+      <View style={style.trackNumberContainer}>
+        {isResolving ? (
+          <ActivityIndicator size="small" color={theme.colors.accent.blue} />
+        ) : isPlayingThis ? (
+          <Ionicons name="stats-chart" size={16} color={theme.colors.accent.status} />
+        ) : (
+          <Text style={[style.trackNumber, isCurrentlyPlaying && style.trackNumberPlaying]}>
+            {index + 1}
+          </Text>
+        )}
+      </View>
+      
+      <View style={style.trackDetails}>
+        <MarqueeText 
+          style={[style.trackTitle, isCurrentlyPlaying && style.trackTitlePlaying]} 
+          text={item.title}
+          animate={isCurrentlyPlaying}
+        />
+        <Text style={style.trackArtist} numberOfLines={1}>
+          {item.artists.join(", ")}
+        </Text>
+      </View>
+      
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Text style={style.trackDuration}>{item.duration}</Text>
+        <PressableScale style={style.downloadBtn} onPress={() => openLikeModal(item)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Ionicons 
+            name={liked ? "heart" : "heart-outline"} 
+            size={24} 
+            color={liked ? theme.colors.accent.likeBold : theme.colors.text.secondary} 
+            style={liked ? { textShadowColor: "#ffffff", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
+          />
+        </PressableScale>
+      </View>
+    </PressableScale>
+  );
+});
+
 export default function AlbumScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -28,7 +71,7 @@ export default function AlbumScreen() {
   
   const { contentMaxWidth, titleSize, baseSize } = useResponsive();
   const shuffleEnabled = useShuffleMode();
-  const { track: activeTrack, isPlaying } = useActiveTrack();
+  const { track: activeTrack, isPlaying, resolvingTrackId } = useActiveTrack();
   const session = usePlaybackSession();
   const { togglePlayPause } = usePlaybackControls();
   const [isSaved, setSaved] = useState(false);
@@ -36,25 +79,35 @@ export default function AlbumScreen() {
   const { openLikeModal, isLiked } = useLikeModal();
   const { tabBarHeight } = useTabBarHeight();
   
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const isThisCollectionActive = session?.source === "album" && session?.collectionId === album?.id;
   const showPause = isThisCollectionActive && isPlaying;
   const albumArtworkSource = useMemo(() => {
     return album?.artwork ? { uri: album.artwork } : undefined;
   }, [album?.artwork]);
 
-
-  const handleMainPlay = () => {
+  const handleMainPlay = useCallback(() => {
     if (isThisCollectionActive) {
       togglePlayPause();
     } else {
-      handlePlayAlbum();
+      if (album) {
+        playCollection({
+          type: "album",
+          id: album.id,
+          title: album.title,
+          artwork: album.artwork,
+          tracks: album.tracks,
+          startIndex: 0,
+        }, router);
+      }
     }
-  };
+  }, [isThisCollectionActive, album, togglePlayPause, router]);
   
-  const goBack = () => {
+  const goBack = useCallback(() => {
     if (router.canGoBack()) router.back();
     else router.replace("/");
-  };
+  }, [router]);
 
   useEffect(() => {
     if (!id) return;
@@ -111,28 +164,49 @@ export default function AlbumScreen() {
     }
   }, [album, isSaved, toggling]);
 
+  const handlePlayTrack = useCallback((index: number) => {
+    if (!album) return;
+    playCollection({
+      type: "album",
+      id: album.id,
+      title: album.title,
+      artwork: album.artwork,
+      tracks: album.tracks,
+      startIndex: index,
+    }, router);
+  }, [album, router]);
+
+  const renderTrack = useCallback(({ item, index }: { item: Track; index: number }) => {
+    const isCurrentlyPlaying = isThisCollectionActive && activeTrack?.videoId === item.videoId;
+    return (
+      <TrackRowItem 
+        item={item} 
+        index={index} 
+        isCurrentlyPlaying={isCurrentlyPlaying} 
+        isPlaying={isPlaying} 
+        handlePlayTrack={handlePlayTrack} 
+        liked={isLiked(item.videoId)}
+        openLikeModal={openLikeModal}
+      />
+    );
+  }, [isThisCollectionActive, activeTrack, isPlaying, handlePlayTrack, isLiked, openLikeModal]);
+
+  const renderSeparator = useCallback(() => (
+    <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)", marginLeft: 56 }} />
+  ), []);
+
   if (loading) {
     return (
       <SafeAreaView style={style.container}>
-        <View style={{ alignItems: 'center', paddingTop: 60, paddingHorizontal: 20 }}>
+        <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 20 }}>
           <SkeletonLoader width={300} height={300} borderRadius={12} style={{ marginBottom: 24 }} />
           <SkeletonLoader width="50%" height={22} style={{ marginBottom: 12 }} />
           <SkeletonLoader width="30%" height={16} style={{ marginBottom: 32 }} />
-          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 32 }}>
+          <View style={{ flexDirection: "row", gap: 12, marginBottom: 32 }}>
             <SkeletonLoader width={120} height={44} borderRadius={22} />
             <SkeletonLoader width={44} height={44} borderRadius={22} />
             <SkeletonLoader width={44} height={44} borderRadius={22} />
           </View>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', width: '100%', paddingVertical: 10 }}>
-              <SkeletonLoader width={20} height={16} borderRadius={4} style={{ marginRight: 16 }} />
-              <View style={{ flex: 1 }}>
-                <SkeletonLoader width="70%" height={16} style={{ marginBottom: 6 }} />
-                <SkeletonLoader width="40%" height={13} />
-              </View>
-              <SkeletonLoader width={28} height={28} borderRadius={14} />
-            </View>
-          ))}
         </View>
       </SafeAreaView>
     );
@@ -151,34 +225,8 @@ export default function AlbumScreen() {
     );
   }
 
-  const handlePlayAlbum = () => {
-    playCollection({
-      type: "album",
-      id: album.id,
-      title: album.title,
-      artwork: album.artwork,
-      tracks: album.tracks,
-      startIndex: 0,
-    }, router);
-  };
-
-  const handlePlayTrack = (index: number) => {
-    playCollection({
-      type: "album",
-      id: album.id,
-      title: album.title,
-      artwork: album.artwork,
-      tracks: album.tracks,
-      startIndex: index,
-    }, router);
-  };
-
   const renderHeader = () => (
     <View style={style.headerContainer}>
-      <PressableScale style={style.headerBack} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-        <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
-      </PressableScale>
-      
       <View style={style.artworkWrapper}>
         {album.artwork ? (
           <Image source={albumArtworkSource} style={style.artwork} cachePolicy="disk" contentFit="cover" transition={150} />
@@ -212,10 +260,10 @@ export default function AlbumScreen() {
           </View>
         </PressableScale>
         <PressableScale 
-          style={[style.actionButton, shuffleEnabled && { backgroundColor: hexToRgba(theme.colors.accent.secondary, 0.2), borderColor: 'transparent' }]}
+          style={[style.actionButton, shuffleEnabled && { backgroundColor: hexToRgba(theme.colors.accent.secondary, 0.2), borderColor: "transparent" }]}
           onPress={async () => {
             import("expo-haptics").then(Haptics => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
-            const { toggleShuffleMode } = await import('@/lib/track-player');
+            const { toggleShuffleMode } = await import("@/lib/track-player");
             await toggleShuffleMode();
           }}
         >
@@ -233,7 +281,7 @@ export default function AlbumScreen() {
               name={isSaved ? "heart" : "heart-outline"} 
               size={24} 
               color={isSaved ? theme.colors.accent.likeBold : theme.colors.text.secondary} 
-              style={isSaved ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
+              style={isSaved ? { textShadowColor: "#ffffff", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
             />
           )}
         </PressableScale>
@@ -241,60 +289,11 @@ export default function AlbumScreen() {
     </View>
   );
 
-  const TrackRowItem = ({ item, index, isCurrentlyPlaying, isPlaying, handlePlayTrack }: any) => {
-    const liked = isLiked(item.videoId);
-    const isPlayingThis = isCurrentlyPlaying && isPlaying;
-
-    return (
-      <PressableScale style={style.trackRow} onPress={() => handlePlayTrack(index)}>
-        <View style={style.trackNumberContainer}>
-          {isPlayingThis ? (
-            <Ionicons name="stats-chart" size={16} color={theme.colors.accent.status} />
-          ) : (
-            <Text style={[style.trackNumber, isCurrentlyPlaying && style.trackNumberPlaying]}>
-              {index + 1}
-            </Text>
-          )}
-        </View>
-        
-        <View style={style.trackDetails}>
-          <MarqueeText 
-            style={[style.trackTitle, isCurrentlyPlaying && style.trackTitlePlaying]} 
-            text={item.title}
-            animate={isCurrentlyPlaying}
-          />
-          <Text style={style.trackArtist} numberOfLines={1}>
-            {item.artists.join(", ")}
-          </Text>
-        </View>
-        
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={style.trackDuration}>{item.duration}</Text>
-          <PressableScale style={style.downloadBtn} onPress={() => openLikeModal(item)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Ionicons 
-              name={liked ? "heart" : "heart-outline"} 
-              size={24} 
-              color={liked ? theme.colors.accent.likeBold : theme.colors.text.secondary} 
-              style={liked ? { textShadowColor: '#ffffff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 } : {}}
-            />
-          </PressableScale>
-        </View>
-      </PressableScale>
-    );
-  };
-
-  const renderTrack = ({ item, index }: { item: Track; index: number }) => {
-    const isCurrentlyPlaying = isThisCollectionActive && activeTrack?.videoId === item.videoId;
-    return (
-      <TrackRowItem 
-        item={item} 
-        index={index} 
-        isCurrentlyPlaying={isCurrentlyPlaying} 
-        isPlaying={isPlaying} 
-        handlePlayTrack={handlePlayTrack} 
-      />
-    );
-  };
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [200, 280],
+    outputRange: [0, 1],
+    extrapolate: "clamp"
+  });
 
   return (
     <SafeAreaView edges={["top"]} style={style.container}>
@@ -309,14 +308,32 @@ export default function AlbumScreen() {
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.bg.page, opacity: 0.85 }]} />
         </View>
       )}
-      <FlatList
+      
+      <Animated.View style={[style.stickyHeader, { opacity: headerOpacity }]} pointerEvents="box-none">
+        <Text style={style.stickyTitle} numberOfLines={1}>{album.title}</Text>
+        <PressableScale onPress={handleMainPlay} style={style.stickyPlayButton}>
+          <Ionicons name={showPause ? "pause" : "play"} size={20} color={theme.colors.text.onPrimary} style={{ marginLeft: showPause ? 0 : 2 }} />
+        </PressableScale>
+      </Animated.View>
+
+      <PressableScale style={style.absoluteBack} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <Ionicons name="chevron-back" size={32} color={theme.colors.text.primary} />
+      </PressableScale>
+
+      <Animated.FlatList
         data={album.tracks}
         keyExtractor={(item, index) => `${item.videoId}-${index}`}
-        ListHeaderComponent={renderHeader()}
+        ListHeaderComponent={renderHeader}
         renderItem={renderTrack}
+        ItemSeparatorComponent={renderSeparator}
         style={style.trackList}
         contentContainerStyle={[style.listContent, { maxWidth: contentMaxWidth, alignSelf: "center", width: "100%", paddingBottom: tabBarHeight + 20 }]}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
       />
     </SafeAreaView>
   );
@@ -365,30 +382,60 @@ const style = StyleSheet.create({
   listContent: {
     paddingBottom: 16,
     paddingHorizontal: 4,
+    paddingTop: 60,
   },
   trackList: {
     flex: 1,
-  },
-  miniPlayerContainer: {
-    width: "100%",
-    alignSelf: "center",
   },
   headerContainer: {
     alignItems: "center",
     padding: 24,
     paddingTop: 12,
   },
-  headerBack: {
+  absoluteBack: {
     position: "absolute",
-    top: 12,
+    top: 48,
     left: 16,
-    zIndex: 10,
+    zIndex: 20,
     width: 40,
     height: 40,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 20,
+  },
+  stickyHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 96,
+    paddingTop: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.bg.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+    zIndex: 15,
+  },
+  stickyTitle: {
+    color: theme.colors.text.primary,
+    fontSize: 16,
+    fontWeight: "bold",
+    maxWidth: "60%",
+    textAlign: "center",
+  },
+  stickyPlayButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.accent.primary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   artworkWrapper: {
     width: 240,
@@ -468,7 +515,7 @@ const style = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 12,
-    marginBottom: 4,
+    marginBottom: 0,
   },
   trackNumberContainer: {
     width: 32,

@@ -1,14 +1,13 @@
 import { Platform } from "react-native";
 import TrackPlayer, { Capability, Event, State, RepeatMode, TrackType } from "@javascriptcommon/react-native-track-player";
-import type { Track } from "./music";
+import type { Track, PlaybackTrack } from "./music";
 import { addToHistory } from "./database";
 import { logger } from "./logger";
 import {
   getPlaybackSession,
   setPlaybackSession,
   updatePlaybackSessionIndex,
-  type PlaybackSessionInput,
-  type PlaybackTrack,
+  type PlaybackSessionInput
 } from "./playback-session";
 
 
@@ -379,7 +378,7 @@ export async function playStandaloneTrack(track: PlaybackTrack, playId: number) 
   
   logger.debug(`[TrackPlayer] playStandaloneTrack called. Active track: "${track.title}"`);
   const safeTrack = { ...track, title: track.title || "Unknown Title", artists: track.artists || [] } as unknown as import("./music").Track;
-  addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
+  
 
   logger.debug(`[PLAY_REQUEST] Standalone playId: ${playId} (latest: ${latestPlayId}) videoId: ${track.videoId}`);
   
@@ -458,7 +457,7 @@ export async function playQueue(
   if (current) {
     logger.debug(`[TrackPlayer] playQueue called. Active track: "${current.title}", Stack: ${new Error().stack}`);
     const safeTrack = { ...current, title: current.title || "Unknown Title", artists: current.artists || [] } as unknown as Track;
-    addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
+    
   }
 
   const playId = opId ?? ++latestPlayId;
@@ -1021,14 +1020,13 @@ async function _playLogicalCollectionTrack(index: number, playId: number, recove
   const track = session.queue[index];
   if (!track) return;
   
-  const safeTrack = { ...track, title: track.title || "Unknown Title", artists: track.artists || [] } as unknown as import("./music").Track;
-  addToHistory(safeTrack).catch((e) => console.error("[TrackPlayer] History error:", e));
+  if (latestPlayId === playId) setResolvingTrackId(track.videoId);
 
   try {
     const { resolveStreamSafely } = await import("./playback");
     const resolved = await resolveStreamSafely(track.videoId, track.streamUrl, {
       title: track.title,
-      artist: track.artists?.[0] || 'Unknown Artist'
+      artist: track.artists?.[0] || "Unknown Artist"
     });
     
     if (latestPlayId !== playId) {
@@ -1040,7 +1038,10 @@ async function _playLogicalCollectionTrack(index: number, playId: number, recove
     track.streamUrl = resolved.url;
     track.mimeType = resolved.mimeType;
 
-    if (isWeb) return;
+    if (isWeb) {
+      setResolvingTrackId(null);
+      return;
+    }
     
     await ensureSetup();
     if (latestPlayId !== playId) return;
@@ -1053,15 +1054,22 @@ async function _playLogicalCollectionTrack(index: number, playId: number, recove
     }
     if (latestPlayId !== playId) return;
 
-    // We don't automatically set RepeatMode.Off here if it's already set to track/queue
-    const mapped = mapTrack({ ...track, _sessionIndex: index } as PlaybackTrack);
+    const mapped = mapTrack({ ...track, _sessionIndex: index } as any);
     (mapped as any)._recoveryAttempts = recoveryAttempts;
-      await TrackPlayer.add([mapped]);
+    await TrackPlayer.add([mapped]);
 
     if (latestPlayId !== playId) return;
     await TrackPlayer.play();
   } catch (e) {
     logger.debug(`[COLLECTION_ERROR] _playLogicalCollectionTrack generation=${playId} error=${e}`);
+  } finally {
+    if (latestPlayId === playId) setResolvingTrackId(null);
   }
 }
+
+let currentResolvingTrackId: string | null = null;
+const resolvingListeners = new Set<(id: string | null) => void>();
+export function setResolvingTrackId(id: string | null) { currentResolvingTrackId = id; resolvingListeners.forEach(l => l(id)); }
+export function addResolvingTrackListener(cb: (id: string | null) => void) { resolvingListeners.add(cb); return { remove: () => resolvingListeners.delete(cb) }; }
+export function getResolvingTrackId() { return currentResolvingTrackId; }
 

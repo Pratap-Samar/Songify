@@ -1,10 +1,7 @@
-import type { Track } from "./music";
+import type { Track, PlaybackTrack } from "./music";
 import { clearPlaybackSession as clearPersistedPlaybackSession, savePlaybackSession } from "./database";
 
-
 export type PlaybackSource = "track" | "album" | "playlist" | "liked";
-
-export type PlaybackTrack = Track & { streamUrl: string, mimeType?: string };
 
 export type PlaybackSession = {
   source: PlaybackSource;
@@ -46,7 +43,6 @@ export function setPlaybackSession(
   queue: PlaybackTrack[],
   currentIndex: number,
 ) {
-  console.log(`[DIAGNOSTIC] setPlaybackSession called. Stack:`, new Error().stack);
   session = { ...input, queue, currentIndex };
   listeners.forEach((listener) => listener(session));
   prefetchNext(session);

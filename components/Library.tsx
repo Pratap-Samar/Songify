@@ -14,9 +14,10 @@ type LibraryProps = {
   onPressSong: (track: Track) => void;
   onPressAlbum?: (album: AlbumSearchItem) => void;
   currentTrackId?: string;
+  resolvingTrackId?: string | null;
 };
 
-export default function Library({ songs, albums = [], isSearching, error, query, onPressSong, onPressAlbum, currentTrackId }: LibraryProps) {
+export default function Library({ songs, albums = [], isSearching, error, query, onPressSong, onPressAlbum, currentTrackId, resolvingTrackId }: LibraryProps) {
   const showEmptyState = query.length >= 3 && !isSearching && !error && songs.length === 0 && albums.length === 0;
   const { tabBarHeight } = useTabBarHeight();
 
@@ -43,12 +44,14 @@ export default function Library({ songs, albums = [], isSearching, error, query,
 
     const track = item as Track;
     const isSelected = track.videoId === currentTrackId;
+    const isResolving = track.videoId === resolvingTrackId;
     return (
       <TrackRow
         title={track.title}
         subtitle={track.artists.join(", ")}
         thumbnailUrl={track.thumbnailUrl}
         isSelected={isSelected}
+        isResolving={isResolving}
         onPress={() => onPressSong(track)}
       />
     );
